@@ -1,0 +1,24 @@
+# Build output
+/build/
+/out/
+/.vs/
+CMakeUserPresets.json
+
+# Binaries and debug files
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.lib
+*.exp
+*.obj
+*.log
+
+# IDE files
+*.user
+*.suo
+*.sln.docstates
+
+# Screenshots except the documented preview
+*.png
+!docs/preview.png
