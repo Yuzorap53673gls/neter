@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <windows.h>
 
@@ -44,6 +45,9 @@ public:
     ImVec2 display_size() const;
     ImVec2 client_origin_screen() const;
     float ui_scale() const { return ui_scale_; }
+
+    // Last time the user touched the panel, in GetTickCount64 milliseconds.
+    uint64_t last_input_ms() const { return last_input_ms_.load(std::memory_order_relaxed); }
 
     uint32_t tracked_pid() const { return tracked_pid_; }
     HWND target_window() const { return target_hwnd_; }
@@ -102,6 +106,7 @@ private:
     float ui_scale_ = 1.0f;
 
     InputState input_;
+    std::atomic<uint64_t> last_input_ms_{0};
     bool sent_down_[3] = {};
     float sent_mouse_x_ = -FLT_MAX;
     float sent_mouse_y_ = -FLT_MAX;

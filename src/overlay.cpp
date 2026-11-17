@@ -626,6 +626,8 @@ void Overlay::on_proxy_mouse(uint32_t message, WPARAM wparam, LPARAM lparam) {
     if (!render_hwnd_ || !proxy_hwnd_)
         return;
 
+    last_input_ms_.store(GetTickCount64(), std::memory_order_relaxed);
+
     POINT point{static_cast<short>(LOWORD(lparam)), static_cast<short>(HIWORD(lparam))};
     if (message == WM_MOUSEWHEEL) {
         // Wheel messages already carry screen coordinates.

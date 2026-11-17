@@ -447,9 +447,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
                             static_cast<unsigned long long>(ticks_hidden), g_attached_pid.load());
         }
 
-        // Keep the overlay responsive at ~144 Hz without burning a full core.
+        // Adaptive pacing: 60 FPS only while the ESP is attached or the user is
+        // interacting with the menu. An idle menu drops to 30 FPS and a hidden
+        // overlay to 10 FPS, which keeps the desktop responsive.
+        const bool panel_open = overlay.panel_visible();
+        const bool esp_active = g_attached_pid.load() != 0;
+        const uint64_t idle_ms = GetTickCount64() - overlay.last_input_ms();
+        int target_fps = 10;
+        if (esp_active)
+            target_fps = 60;
+        else if (panel_open)
+            target_fps = idle_ms < 400 ? 60 : 30;
+
         const auto elapsed = std::chrono::steady_clock::now() - frame_start;
-        const auto budget = std::chrono::microseconds(6944);
+        const auto budget = std::chrono::microseconds(1000000 / target_fps);
         if (elapsed < budget)
             std::this_thread::sleep_for(budget - elapsed);
     }
