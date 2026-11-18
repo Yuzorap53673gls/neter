@@ -1,5 +1,5 @@
 --// ==========================================================
---// ROYALITY HUB | V18
+--// ROYALITY HUB | V19
 --// Correções principais:
 --//  * mira acompanha slide/pulo (sem offset fixo e sem descartar alvo)
 --//  * aimbot só puxa a câmera enquanto você atira
@@ -793,7 +793,7 @@ local Window = nil
 if type(Rayfield) == "table" then
     local ok, res = pcall(function()
         return Rayfield:CreateWindow({
-            Name = "Royality Hub | Ultimate Final v18",
+            Name = "Royality Hub | Ultimate Final v19",
             LoadingTitle = "Carregando Hub...",
             LoadingSubtitle = "Delta Executor",
             ConfigurationSaving = { Enabled = false },
@@ -1163,7 +1163,7 @@ local function buildFallbackPanel()
     title.TextSize = 14
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.Text = "ROYALITY v18 (modo simples)"
+    title.Text = "ROYALITY v19 (modo simples)"
     title.Parent = frame
 
     local close = Instance.new("TextButton")
@@ -1293,7 +1293,7 @@ end
 
 if usedFallback then
     pcall(buildFallbackPanel)
-    toast("Royality v18", "Interface completa não carregou. Usei o painel simples.", 6)
+    toast("Royality v19", "Interface completa não carregou. Usei o painel simples.", 6)
 end
 
 --// ---- ESP ---------------------------------------------------
@@ -1365,6 +1365,92 @@ local inputEndedConn = UIS.InputEnded:Connect(function(input)
 end)
 table.insert(getgenv().RoyalityConns, inputEndedConn)
 
+--// ---- controles de toque (celular) --------------------------
+--// No PC você usa o mouse. No celular, estes botões seguram o
+--// aimbot e o sobe/desce do voo, porque não existe botão direito.
+if UIS.TouchEnabled then
+    local troot = nil
+    pcall(function() troot = gethui and gethui() end)
+    if not troot then
+        pcall(function() troot = game:GetService("CoreGui") end)
+    end
+    if not troot then
+        pcall(function() troot = LP:WaitForChild("PlayerGui", 5) end)
+    end
+
+    if troot then
+        local tsg = Instance.new("ScreenGui")
+        tsg.Name = "RoyalityTouch"
+        tsg.ResetOnSpawn = false
+        tsg.IgnoreGuiInset = true
+        tsg.DisplayOrder = 99999
+        tsg.Parent = troot
+
+        local function makeBtn(text, px, py, size, downFn, upFn)
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(0, size, 0, size)
+            b.Position = UDim2.new(1, px, 1, py)
+            b.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+            b.BackgroundTransparency = 0.25
+            b.BorderSizePixel = 0
+            b.Text = text
+            b.TextColor3 = Color3.fromRGB(255, 255, 255)
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 15
+            b.AutoButtonColor = false
+            b.Active = true
+            b.Parent = tsg
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(1, 0)
+            corner.Parent = b
+
+            b.MouseButton1Down:Connect(function()
+                pcall(function() downFn(b) end)
+            end)
+            b.MouseButton1Up:Connect(function()
+                pcall(function() upFn(b) end)
+            end)
+            return b
+        end
+
+        State.aimButton = makeBtn("AIM", -96, -120, 72,
+            function(b)
+                State.firing = true
+                b.BackgroundColor3 = Color3.fromRGB(0, 140, 90)
+            end,
+            function(b)
+                State.firing = false
+                b.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+            end)
+
+        local upBtn = makeBtn("▲", -190, -175, 56,
+            function(b)
+                State.flyUp = true
+                b.BackgroundColor3 = Color3.fromRGB(0, 110, 150)
+            end,
+            function(b)
+                State.flyUp = false
+                b.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+            end)
+
+        local downBtn = makeBtn("▼", -190, -95, 56,
+            function(b)
+                State.flyDown = true
+                b.BackgroundColor3 = Color3.fromRGB(0, 110, 150)
+            end,
+            function(b)
+                State.flyDown = false
+                b.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+            end)
+
+        upBtn.Visible = Config.FlyEnabled
+        downBtn.Visible = Config.FlyEnabled
+        State.flyUpBtn = upBtn
+        State.flyDownBtn = downBtn
+    end
+end
+
 --// ---- loop principal ----------------------------------------
 getgenv().RoyalityLoop = RunService.RenderStepped:Connect(function(dt)
     pcall(function()
@@ -1382,6 +1468,15 @@ getgenv().RoyalityLoop = RunService.RenderStepped:Connect(function(dt)
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local backpack = LP:FindFirstChildOfClass("Backpack")
+
+        --// Botões de toque: só aparecem quando o recurso está ligado
+        if State.aimButton then
+            State.aimButton.Visible = Config.AimbotEnabled
+        end
+        if State.flyUpBtn then
+            State.flyUpBtn.Visible = Config.FlyEnabled
+            State.flyDownBtn.Visible = Config.FlyEnabled
+        end
 
         --// ESP: não precisa rodar a cada frame
         if State.frame % 6 == 0 then
@@ -1557,10 +1652,10 @@ getgenv().RoyalityLoop = RunService.RenderStepped:Connect(function(dt)
             if moveDir.Magnitude > 0 then
                 dir = Cam.CFrame.LookVector * moveDir.Magnitude
             end
-            if UIS:IsKeyDown(Enum.KeyCode.Space) then
+            if UIS:IsKeyDown(Enum.KeyCode.Space) or State.flyUp then
                 dir += Vector3.new(0, 1, 0)
             end
-            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
+            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) or State.flyDown then
                 dir += Vector3.new(0, -1, 0)
             end
 
@@ -1612,7 +1707,7 @@ end)
 table.insert(getgenv().RoyalityConns, getgenv().RoyalityLoop)
 
 toast(
-    "Royality Hub v18",
+    "Royality Hub v19",
     usedFallback and "Rodando no painel simples (Rayfield falhou)."
         or "Carregado. Aimbot só puxa quando você atira.",
     5
