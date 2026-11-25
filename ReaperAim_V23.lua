@@ -15,12 +15,19 @@ local CFG={Aimbot=false,ToggleMode=false,TeamCheck=false,WallCheck=true,Predicti
 local ST={firing=false,fireUntil=0,flyUp=false,flyDown=false,lock=nil,esp={},loot={},bots={},lastMed=0}
 local tGui,upBtn,downBtn
 local function mk(c,p,t)
- local o=Instance.new(c)
- if o:IsA("GuiObject") then o.BorderSizePixel=0 end
- if c=="TextLabel" then o.BackgroundTransparency=1 o.Text="" elseif c=="TextButton" then o.Text="" o.AutoButtonColor=false end
- if t then for k,v in pairs(t) do o[k]=v end end
- if p then o.Parent=p end
- return o
+  local o=Instance.new(c)
+  if o:IsA("GuiObject") then o.BorderSizePixel=0 end
+  if c=="TextLabel" then o.BackgroundTransparency=1 o.Text=""
+  elseif c=="TextButton" then o.Text="" o.AutoButtonColor=false end
+  if t then
+    for k,v in pairs(t) do
+      local ok=false
+      ok=pcall(function() o[k]=v end)
+      if not ok then warn("[Reaper] prop "..tostring(k).." em "..tostring(c)) end
+    end
+  end
+  if p then o.Parent=p end
+  return o
 end
 local function cr(o,a,b) mk("UICorner",o,{CornerRadius=b and UD(a,b) or UD(1,0)}) end
 local function toast(a,b,d)
@@ -81,9 +88,14 @@ local pages,navs={},{}
 local NAV={{"Novidades","!"},{"Config","="},{"Home","#"},{"Visuals","*"},{"Aimbot","@"},{"FPS","%"},{"Character","+"},{"Botoes","o"},{"Creditos","i"}}
 local ord=0
 local function newPage(k)
- local p=mk("ScrollingFrame",cont,{Size=U2(1,-16,1,-16),Position=U2(0,8,0,8),BackgroundTransparency=1,ScrollBarThickness=4,ScrollBarImageColor3=C(90,70,80),ScrollingDirection=Enum.ScrollingDirection.Y,ElasticBehavior=Enum.ElasticBehavior.Never,CanvasSize=U2(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarFadeOutMaxTime=0,Visible=false})
+ local p=mk("ScrollingFrame",cont,{Size=U2(1,-16,1,-16),Position=U2(0,8,0,8),BackgroundTransparency=1,ScrollBarThickness=5,ScrollBarImageColor3=C(90,70,80),CanvasSize=U2(0,0,0,0),Visible=false})
  local ly=mk("UIListLayout",p,{Padding=UD(0,3),SortOrder=Enum.SortOrder.LayoutOrder})
- local pad=mk("UIPadding",p,{PaddingTop=UD(0,2),PaddingBottom=UD(0,14),PaddingLeft=UD(0,4),PaddingRight=UD(0,10)})
+ mk("UIPadding",p,{PaddingTop=UD(0,2),PaddingBottom=UD(0,16),PaddingLeft=UD(0,4),PaddingRight=UD(0,10)})
+ local function fit()
+ pcall(function() p.CanvasSize=U2(0,0,0,ly.AbsoluteContentSize.Y+20) end)
+ end
+ pcall(function() ly:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fit) end)
+ task.spawn(function() for _=1,60 do fit() task.wait(0.1) end end)
  pages[k]=p
  return p
 end
@@ -106,7 +118,7 @@ for i,it in ipairs(NAV) do
  local tx=mk("TextLabel",b,{Size=U2(1,-34,1,0),Position=U2(0,32,0,0),BackgroundTransparency=1,Text=it[1],Font=F.GothamMedium,TextSize=12,TextColor3=MU,TextXAlignment=Enum.TextXAlignment.Left})
  navs[it[1]]={bg=b,bar=bar0,gl=gl,txt=tx}
  b.MouseButton1Click:Connect(function() show(it[1]) end)
- newPage(it[1])
+ pcall(newPage,it[1])
 end
 local chip=mk("Frame",side,{Size=U2(1,-14,0,34),Position=U2(0,7,1,-42),BackgroundTransparency=1})
 local av=mk("Frame",chip,{Size=U2(0,24,0,24),Position=U2(0,4,.5,-12),BackgroundColor3=AC})
@@ -508,15 +520,15 @@ sect(fp,"Medidor")
 local fpsLbl=note(fp,"FPS: --",34)
 fpsLbl.Font=F.Code
 note(fp,"Neblina/Fullbright: aba Visuals.",28)
-local cr=pages.Character
-sect(cr,"Movimento")
-tog(cr,"Voar","Fly",function(v) if not v then stopFly() end if upBtn then upBtn.Visible=v downBtn.Visible=v end end)
-step(cr,"Velocidade do voo","FlySpeed",10,20,300)
-step(cr,"Speed (WalkSpeed)","WalkSpeed",2,8,300,applyChar)
-step(cr,"JumpPower","JumpPower",5,20,300,applyChar)
-sect(cr,"Vida")
-tog(cr,"Kit medico automatico","AutoMed",function(v) if v then ST.lastMed=0 end end)
-step(cr,"Curar abaixo de","MedAt",5,10,95)
+local chr=pages.Character
+sect(chr,"Movimento")
+tog(chr,"Voar","Fly",function(v) if not v then stopFly() end if upBtn then upBtn.Visible=v downBtn.Visible=v end end)
+step(chr,"Velocidade do voo","FlySpeed",10,20,300)
+step(chr,"Speed (WalkSpeed)","WalkSpeed",2,8,300,applyChar)
+step(chr,"JumpPower","JumpPower",5,20,300,applyChar)
+sect(chr,"Vida")
+tog(chr,"Kit medico automatico","AutoMed",function(v) if v then ST.lastMed=0 end end)
+step(chr,"Curar abaixo de","MedAt",5,10,95)
 local bt=pages.Botoes
 sect(bt,"Para que serve")
 note(bt,[[
@@ -561,7 +573,8 @@ note(nv,[[
 * Abas Novidades e Config no topo.
 * Rolagem das abas corrigida.
 * Antena do ESP ajustada.
-]],160)
+* Menu nao some mais (abas voltaram).
+]],200)
 sect(nv,"v22")
 note(nv,[[
 * Mira so trava quando voce atira.
@@ -580,7 +593,7 @@ Celular: toque em atirar; AIM segura
 a mira e FIRE dispara.
 Sem tecla de atalho.
 ]],110)
-show("Home")
+show(pages.Home and "Home" or "Novidades")
 local dPan={}
 local function dPanel(pos,txt)
  local f=mk("Frame",gui,{Size=U2(0,120,0,34),Position=pos,BackgroundColor3=C(190,28,44),BackgroundTransparency=.35,Visible=false,ZIndex=60})
