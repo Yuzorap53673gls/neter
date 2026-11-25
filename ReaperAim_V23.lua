@@ -109,13 +109,15 @@ local function show(k)
  v.gl.TextColor3=on and AC or MU
  end
 end
+local navH=math.clamp(math.floor(((WH-40)-56)/#NAV),22,32)
+local navFS=navH<26 and 10 or 12
 for i,it in ipairs(NAV) do
- local b=mk("TextButton",side,{Size=U2(1,-14,0,32),Position=U2(0,7,0,8+(i-1)*35),BackgroundColor3=PN,Text=""})
+ local b=mk("TextButton",side,{Size=U2(1,-14,0,navH),Position=U2(0,7,0,6+(i-1)*(navH+3)),BackgroundColor3=PN,Text=""})
  mk("UICorner",b,{CornerRadius=UD(0,7)})
- local bar0=mk("Frame",b,{Size=U2(0,3,0,16),Position=U2(0,-7,.5,-8),BackgroundColor3=AC,Visible=false})
+ local bar0=mk("Frame",b,{Size=U2(0,3,0,math.min(16,navH-8)),Position=U2(0,-7,.5,-math.min(16,navH-8)/2),BackgroundColor3=AC,Visible=false})
  mk("UICorner",bar0,{CornerRadius=UD(1,0)})
- local gl=mk("TextLabel",b,{Size=U2(0,18,1,0),Position=U2(0,10,0,0),BackgroundTransparency=1,Text=it[2],Font=F.GothamBold,TextSize=13,TextColor3=MU})
- local tx=mk("TextLabel",b,{Size=U2(1,-34,1,0),Position=U2(0,32,0,0),BackgroundTransparency=1,Text=it[1],Font=F.GothamMedium,TextSize=12,TextColor3=MU,TextXAlignment=Enum.TextXAlignment.Left})
+ local gl=mk("TextLabel",b,{Size=U2(0,18,1,0),Position=U2(0,10,0,0),BackgroundTransparency=1,Text=it[2],Font=F.GothamBold,TextSize=navFS,TextColor3=MU})
+ local tx=mk("TextLabel",b,{Size=U2(1,-34,1,0),Position=U2(0,32,0,0),BackgroundTransparency=1,Text=it[1],Font=F.GothamMedium,TextSize=navFS,TextColor3=MU,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd})
  navs[it[1]]={bg=b,bar=bar0,gl=gl,txt=tx}
  b.MouseButton1Click:Connect(function() show(it[1]) end)
  pcall(newPage,it[1])
