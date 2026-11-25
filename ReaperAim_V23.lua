@@ -222,14 +222,13 @@ local function applyESP(ch)
  local nm=isP and pl.Name or ch.Name
  local col=isP and CV or BV
  local hl=mk("Highlight",ch,{Name="ReaperHL",Adornee=ch,FillColor=col,FillTransparency=.62,OutlineColor=C(255,255,255),OutlineTransparency=.3})
- local bb2=mk("BillboardGui",ch,{Name="ReaperBB",Adornee=ch,Size=U2(0,210,0,74),StudsOffset=Vector3.new(0,2.7,0),AlwaysOnTop=true,MaxDistance=0,LightInfluence=0})
- local ant=mk("Frame",bb2,{Size=U2(0,2,0,18),Position=U2(.5,-1,0,2),BackgroundColor3=col,Visible=CFG.Antenna})
- local cap=mk("Frame",ant,{Size=U2(8,0,0,2),Position=U2(.5,0,0,0),BackgroundColor3=col})
- local lb=mk("TextLabel",bb2,{Size=U2(1,0,0,16),Position=U2(0,0,0,22),BackgroundTransparency=1,Text=nm,Font=F.GothamBold,TextSize=13,TextColor3=col,TextStrokeTransparency=.35})
- local hbg=mk("Frame",bb2,{Size=U2(.55,0,0,4),Position=U2(.225,0,0,40),BackgroundColor3=C(20,16,18)})
+ local bb2=mk("BillboardGui",ch,{Name="ReaperBB",Adornee=ch,Size=U2(0,150,0,34),StudsOffset=Vector3.new(0,3.1,0),AlwaysOnTop=true,MaxDistance=0,LightInfluence=0})
+ local ant=mk("Frame",bb2,{Size=U2(0,2,0,12),Position=U2(.5,-1,0,0),BackgroundColor3=col,Visible=CFG.Antenna})
+ local cap=mk("Frame",ant,{Size=U2(7,0,0,2),Position=U2(.5,0,0,-2),BackgroundColor3=col})
+ local lb=mk("TextLabel",bb2,{Size=U2(1,0,0,13),Position=U2(0,0,0,12),BackgroundTransparency=1,Text=nm,Font=F.GothamBold,TextSize=12,TextColor3=col,TextStrokeTransparency=.5})
+ local hbg=mk("Frame",bb2,{Size=U2(.62,0,0,3),Position=U2(.19,0,0,27),BackgroundColor3=C(16,12,15)})
  local hpf=mk("Frame",hbg,{Size=U2(1,0,1,0),BackgroundColor3=col,})
- local dl=mk("TextLabel",bb2,{Size=U2(1,0,0,14),Position=U2(0,0,0,46),BackgroundTransparency=1,Text="",Font=F.Gotham,TextSize=10,TextColor3=C(215,205,212)})
- ST.esp[ch]={hl=hl,bb=bb2,label=lb,spike=ant,cap=cap,hp=hpf,dist=dl,isP=isP,pname=nm}
+ ST.esp[ch]={hl=hl,bb=bb2,label=lb,spike=ant,cap=cap,hp=hpf,isP=isP,pname=nm}
 end
 local WORDS={"cash","money","coin","gem","diamond","jewel","gold","bar","key","crate","safe","bag","briefcase","vault","atm","register","chest","loot","artifact","relic","prize"}
 local function isLoot(n)
@@ -556,12 +555,13 @@ note(nv,[[
   dentro do angulo e da distancia.
 * Botao "Manter alvo" (Sticky).
 * Aviso de perigo nos lados e atras.
-* Antena do ESP corrigida.
+* ESP limpo: nome + barra de vida.
 * AIM/FIRE saem da tela: aba Botoes.
 * Funcoes duplicadas removidas.
 * Abas Novidades e Config no topo.
 * Rolagem das abas corrigida.
-]],130)
+* Antena do ESP ajustada.
+]],160)
 sect(nv,"v22")
 note(nv,[[
 * Mira so trava quando voce atira.
@@ -682,7 +682,7 @@ local function refreshBots()
  ST.bots=out
 end
 task.spawn(function() while gui.Parent do task.wait(1) pcall(refreshBots) end end)
-task.spawn(function() local cam=workspace.CurrentCamera while gui.Parent do task.wait(0.15) cam=workspace.CurrentCamera if CFG.ESP then for _,p in ipairs(P:GetPlayers()) do if p~=LP then applyESP(p.Character) end end for _,b in ipairs(ST.bots) do applyESP(b.char) end for ch,d in pairs(ST.esp) do local h=ch:FindFirstChildOfClass("Humanoid") if not ch.Parent or not h or h.Health<=0 then clearESP(ch) else local ok,dis=pcall(function() return math.floor((cam.CFrame.Position-ch:GetPivot().Position).Magnitude) end) local vis=true if ok then vis=freeSight(ch) end local col=d.isP and (vis and CV or CB) or (vis and BV or BB) d.hl.FillColor=col d.label.TextColor3=col d.label.Text=d.pname..(d.isP and "" or " [BOT]") if d.hp then d.hp.Size=U2(math.clamp(h.Health/math.max(h.MaxHealth,1),0,1),0,1,0) d.hp.BackgroundColor3=col end if d.dist then d.dist.Text=math.floor(h.Health).." hp   " ..(ok and dis or 0).." m" end if d.spike then d.spike.Visible=CFG.Antenna d.spike.BackgroundColor3=col end if d.cap then d.cap.Visible=CFG.Antenna d.cap.BackgroundColor3=col end end end elseif next(ST.esp) then clearAllESP() end end end)
+task.spawn(function() while gui.Parent do task.wait(0.15) if CFG.ESP then for _,p in ipairs(P:GetPlayers()) do if p~=LP then applyESP(p.Character) end end for _,b in ipairs(ST.bots) do applyESP(b.char) end for ch,d in pairs(ST.esp) do local h=ch:FindFirstChildOfClass("Humanoid") if not ch.Parent or not h or h.Health<=0 then clearESP(ch) else local vis=freeSight(ch) local col=d.isP and (vis and CV or CB) or (vis and BV or BB) d.hl.FillColor=col d.label.TextColor3=col d.label.Text=d.pname..(d.isP and "" or " [BOT]") if d.hp then d.hp.Size=U2(math.clamp(h.Health/math.max(h.MaxHealth,1),0,1),0,1,0) d.hp.BackgroundColor3=col end if d.spike then d.spike.Visible=CFG.Antenna d.spike.BackgroundColor3=col end if d.cap then d.cap.Visible=CFG.Antenna d.cap.BackgroundColor3=col end end end elseif next(ST.esp) then clearAllESP() end end end)
 task.spawn(function() while gui.Parent do task.wait(3) if CFG.LootESP then pcall(scanLoot) elseif next(ST.loot) then clearLoot() end end end)
 local function isMed(t)
  if not t or not t:IsA("Tool") then return false end
