@@ -968,6 +968,54 @@ local function mineSpots()
   return out
 end
 
+--// ESCANEADOR DO MAPA (copiar e mandar)
+local function scanMap()
+  pcall(function() prompts() end)
+  local L={}
+  local function add(s) L[#L+1]=s end
+  local sp=workspace:FindFirstChildOfClass("SpawnLocation")
+  add("=== REAPER GOLD - MAPA ===")
+  add("PlaceId: "..tostring(game.PlaceId).."  JobId: "..tostring(game.JobId))
+  add("Spawn: "..(sp and tostring(sp.Position) or "nao achado"))
+  add("Jogador: "..tostring(hrp() and hrp().Position))
+  add("")
+  add("--- PROMPTS (nome do pai | ActionText | ObjectText | Hold | posicao | dist. do spawn) ---")
+  local seen={}
+  for _,p in ipairs(prompts()) do
+    if p.Parent and not seen[p.Parent] then
+      seen[p.Parent]=true
+      local b=p.Parent:FindFirstChildWhichIsA("BasePart",true)
+      local pos=b and b.Position or (typeof(p:GetAttribute("pos"))=="Vector3" and p:GetAttribute("pos"))
+      local dist=pos and sp and string.format("%.0f",(pos-sp.Position).Magnitude) or "?"
+      add(string.format("%s | %s | %s | %.1fs | %s | %sm",p.Parent.Name,tostring(p.ActionText),tostring(p.ObjectText),p.HoldDuration or 0,tostring(pos),tostring(dist)))
+    end
+  end
+  add("")
+  add("--- PARTES COM NOMES DE INTERESSE ---")
+  local cnt=0
+  for _,d in ipairs(workspace:GetDescendants()) do
+    if d:IsA("BasePart") and has(d.Name,OREW) then
+      local dist=sp and string.format("%.0f",(d.Position-sp.Position).Magnitude) or "?"
+      add(d.Name.." | "..tostring(d.Position).." | "..dist.."m")
+      cnt=cnt+1
+      if cnt>200 then break end
+    end
+  end
+  add("")
+  add("--- BOTOES DA UI ---")
+  local function scan(g)
+    for _,d in ipairs(g:GetDescendants()) do
+      if d:IsA("GuiButton") and d.Visible and (d.Text or "")~="" then add(d.Name.." | "..tostring(d.Text)) end
+    end
+  end
+  pcall(function() scan(game:GetService("CoreGui")) end)
+  pcall(function() scan(LP:FindFirstChild("PlayerGui")) end)
+  if gethui then pcall(function() scan(gethui()) end) end
+  local txt=table.concat(L,"\n")
+  if setclipboard then pcall(setclipboard,txt) end
+  return txt
+end
+
 local function mPhase(p)
   ST.mphase=p
   Store.RG_MISSION={phase=p,mission=CFG.Mission,waitmode=CFG.WaitMode,idx=ST.midx}
@@ -1011,11 +1059,24 @@ local function missionTick()
   elseif ph=="enter" then
     local m=MISS[CFG.Mission] or MISS[1]
     ST.status="Entrando: "..m.n
-    local c=namedParts(m.w)
-    if #c>0 then tpPart(c[1]) task.wait(.1) end
-    if CFG.WaitMode==2 then clickText(m.w) end
+    local ok=false
+    -- 1) acha o PROMPT do portal pelo texto dele (ex: "Trem de Noobs  Teletransportar")
+    for _,p in ipairs(prompts()) do
+      if p.Enabled and has((p.ActionText or "").." "..(p.ObjectText or "").." "..(p.Parent and p.Parent.Name or ""),m.w) then
+        if CFG.TpSpot then tpNear(p,3) end
+        task.wait(.08)
+        if fireP(p) then ok=true break end
+      end
+    end
+    -- 2) botão da UI com o nome da missão ou Teletransportar
+    if not ok then ok=clickText(m.w) end
+    if not ok then ok=clickText(BTP) end
+    -- 3) partes nomeadas como último recurso
+    if not ok then
+      local c=namedParts(m.w)
+      if #c>0 then tpPart(c[1]) task.wait(.1) clickText(BTP) end
+    end
     Store.RG_MISSION={phase="dig",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
-    clickText(BTP)
     autoExec(true)
     mPhase("dig")
 
@@ -1257,6 +1318,11 @@ btn(pa,"Escanear prompts do mapa",function()
   ST.status="Prompts encontrados: "..n.."  |  pontos de escavação: "..#findP(KEY.dig,9)
 end)
 btn(pa,"Zerar contadores da sessão",function() ST.session=0 ST.ores=0 ST.bars=0 ST.status="Contadores zerados" end)
+btn(pa,"ESCANEAR MAPA (copia tudo)",function()
+  local t=scanMap()
+  if setclipboard then toast("Reaper Gold","Mapa copiado ("..#t.." chars). Cole aqui.",5) end
+  ST.status="Mapa escaneado: "..#t.." caracteres"
+end)
 
 local aj=segP["Ajustes"]
 sect(aj,"Comportamento")
