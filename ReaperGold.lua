@@ -6,6 +6,12 @@ local L=game:GetService("Lighting")
 local TPS=game:GetService("TeleportService")
 local LP=P.LocalPlayer
 if not LP then return end
+local Store=(typeof(getgenv)=="function" and getgenv()) or _G
+if Store.RG_RUNNING then
+  pcall(function() Store.RG_OLD:Destroy() end)
+  if Store.RG_STOP then pcall(Store.RG_STOP) end
+end
+Store.RG_RUNNING=true
 local U2=UDim2.new local UD=UDim.new local C=Color3.fromRGB
 local F=Enum.Font local EIT=Enum.UserInputType
 
@@ -21,7 +27,7 @@ local MU=C(152,144,154)
 
 local CFG={
 Hud=true,Scale=100,Notify=true,
-AutoDig=true,AutoSmelt=true,AutoUpgrade=true,AutoNpc=true,AutoMuseum=false,AutoNugget=true,Partner=true,AutoExec=true,AutoMission=true,Mission=1,WaitMode=1,DeliverFirst=true,
+AutoDig=false,AutoSmelt=false,AutoUpgrade=false,AutoNpc=false,AutoMuseum=false,AutoNugget=false,Partner=false,AutoExec=false,AutoMission=false,Mission=1,WaitMode=1,DeliverFirst=false,
 SmeltAt=10,Delay=1.2,TpSpot=true,
 NuggetNeed=15,NuggetStep=2,
 Esp=false,EspName=true,Fog=false,Full=false,AntiLag=false,
@@ -57,7 +63,8 @@ end
 local gui=mk("ScreenGui",nil,{Name="ReaperGold",ResetOnSpawn=false,IgnoreGuiInset=true,DisplayOrder=9999})
 local okp=pcall(function() gui.Parent=(gethui and gethui()) or game:GetService("CoreGui") end)
 if not okp or not gui.Parent then pcall(function() gui.Parent=LP:WaitForChild("PlayerGui",10) end) end
-if not gui.Parent then gui:Destroy() toast("Reaper Gold","Executor bloqueou a interface.",6) return end
+if not gui.Parent then gui:Destroy() Store.RG_RUNNING=false toast("Reaper Gold","Executor bloqueou a interface.",6) return end
+Store.RG_OLD=gui
 
 local VPS=workspace.CurrentCamera.ViewportSize
 local WW=math.min(540,VPS.X-24)
@@ -128,7 +135,7 @@ local side=mk("Frame",win,{Size=U2(0,SW,1,-42),Position=U2(0,0,0,42),BackgroundC
 mk("UICorner",side,{CornerRadius=UD(0,10)})
 local cont=mk("Frame",win,{Size=U2(1,-SW,1,-42),Position=U2(0,SW,0,42),BackgroundColor3=BG})
 local pages,navs={},{}
-local NAV={{"Novidades","!"},{"Info","?"},{"Home","#"},{"Automacao","$"},{"TP Hub","@"},{"Personagem","+"},{"Visual","*"},{"Config","="},{"Creditos","i"}}
+local NAV={{"Novidades","!"},{"Info","?"},{"Home","#"},{"Automacao","$"},{"Puxa Player","@"},{"Personagem","+"},{"Visual","*"},{"Config","="},{"Creditos","i"}}
 local ord=0
 
 local function mkScroll(par,size,pos)
@@ -878,8 +885,8 @@ local function autoExec(on)
 end
 
 --// MISSOES: Trem de Noobs / Chao e Lava (loop automatico)
-local MISS={{n="Trem de Noobs",w={"noob","trem","train","nobb"}},
-            {n="Chão e Lava",w={"lava","chao","chão","floor","ground"}}}
+local MISS={{n="Trem de Noobs",w={"noob","trem","train","nobb"},port={"trem de noobs","noob","trem","train","nobb"}},
+            {n="Chão e Lava",w={"lava","chao","chão","floor","ground"},port={"lava","chão e lava","chao","lava floor","lava chao"}}}
 local BTP={"teletransport","teleport","entrar","start","jogar","play"}
 local SMW={"fundir","fundição","fundicao","smelt","processar"}
 
@@ -994,8 +1001,14 @@ local function missionTick()
     ST.status="WGC Gold Hunters: "..(ST.midx-1).."/"..#sp
 
   elseif ph=="portal" then
-    ST.status="Portal Caçadores de Ouro 2.0"
-    local c=namedParts({"portal","caçad","cacad","hunter","goldhunter","2.0","lobby"})
+    local m=MISS[CFG.Mission] or MISS[1]
+    ST.status="Portal da missão: "..m.n
+    local c=namedParts(m.port)
+    if #c==0 then
+      for _,d in ipairs(workspace:GetDescendants()) do
+        if d:IsA("BasePart") and has(d.Name,m.port) then c[#c+1]=d end
+      end
+    end
     if #c>0 then tpPart(c[1]) task.wait(.1) end
     Store.RG_MISSION={phase="smelt",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
     clickText(BTP)
@@ -1041,6 +1054,7 @@ task.spawn(function()
   end
 end)
 
+Store.RG_STOP=function() Store.RG_RUNNING=false Store.RG_AUTO=nil Store.RG_MISSION=nil end
 local logScroll
 local function renderLogs()
   if not logScroll then return end
@@ -1084,7 +1098,7 @@ local function saveDest()
   local r=hrp()
   if not r then return end
   ST.dest=r.CFrame
-  toast("TP Hub","Destino salvo.",3)
+  toast("Puxa Player","Destino salvo (longe da fundidora).",3)
 end
 
 --// PAGINAS: conteudo
@@ -1095,7 +1109,7 @@ mk("UICorner",homeName,{CornerRadius=UD(0,8)})
 ord=ord+1
 sect(home,"Atalhos")
 btn(home,"Abrir Automação",function() show("Automacao") end)
-btn(home,"Abrir TP Hub",function() show("TP Hub") end)
+btn(home,"Abrir Puxa Player",function() show("Puxa Player") end)
 btn(home,"Abrir Info (tutorial)",function() show("Info") end)
 sect(home,"Ao vivo")
 local homeLive=note(home,"",62)
@@ -1179,8 +1193,6 @@ tog(aj,"Sistema TP ativo","TpOn")
 step(aj,"Escala da interface %","Scale",10,60,180,function(v) uisc.Scale=v/100 end)
 sect(aj,"Manutenção")
 btn(aj,"Resetar toda a configuração",function()
-  CFG.AutoDig=false CFG.AutoSmelt=false CFG.AutoUpgrade=false CFG.AutoNpc=false
-  CFG.AutoMuseum=false CFG.AutoNugget=false CFG.Partner=false CFG.AutoMission=false CFG.AutoExec=false CFG.DeliverFirst=false
   CFG.Esp=false CFG.Fog=false CFG.Full=false CFG.AntiLag=false
   CFG.Speed=16 CFG.Jump=50 CFG.InfJump=false CFG.Noclip=false
   CFG.SmeltAt=10 CFG.Delay=1.2 CFG.TpSpot=true
@@ -1189,22 +1201,39 @@ btn(aj,"Resetar toda a configuração",function()
 end)
 
 --// TP HUB
-local tp=pages["TP Hub"]
-sect(tp,"Alvo")
-refreshTarget()
-local function tgtTxt() return "Alvo: "..(ST.target and ST.target.Name or "?")..(ST.target==LP and " (você)" or "").."  v" end
-local tgtBtn=mk("TextButton",tp,{Size=U2(1,0,0,32),BackgroundColor3=C(36,28,52),Font=F.GothamBold,TextSize=11,TextColor3=TX,Text=tgtTxt(),LayoutOrder=ord+1})
-mk("UICorner",tgtBtn,{CornerRadius=UD(0,8)})
+local tp=pages["Puxa Player"]
+sect(tp,"Escolher alvo (lista com scroll)")
+local tgtTxt=mk("TextLabel",tp,{Size=U2(1,0,0,22),Text="Alvo: ?",Font=F.GothamBold,TextSize=11,TextColor3=GD,LayoutOrder=ord+1})
 ord=ord+1
-tgtBtn.MouseButton1Click:Connect(function()
-  local list=P:GetPlayers()
-  if #list==0 then return end
-  ST.idx=(ST.idx%#list)+1
-  ST.target=list[ST.idx]
-  tgtBtn.Text=tgtTxt()
-end)
+local listScroll=mk("ScrollingFrame",tp,{Size=U2(1,0,0,118),BackgroundColor3=PN,ScrollBarThickness=4,ScrollBarImageColor3=C(160,130,160),CanvasSize=U2(0,0,0,0),LayoutOrder=ord+1})
+mk("UICorner",listScroll,{CornerRadius=UD(0,8)})
+ord=ord+1
+local listLy=mk("UIListLayout",listScroll,{Padding=UD(0,3),SortOrder=Enum.SortOrder.LayoutOrder})
+local function paintList()
+  for _,c in ipairs(listScroll:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+  local i=0
+  for _,pl in ipairs(P:GetPlayers()) do
+    i=i+1
+    local b=mk("TextButton",listScroll,{Size=U2(1,-10,0,26),Position=U2(0,5,0,0),BackgroundColor3=(pl==ST.target) and C(60,48,24) or RW,Text=(pl==LP and "VOCÊ: " or "ALVO: ")..pl.Name,Font=F.GothamBold,TextSize=11,TextColor3=pl==ST.target and GD or TX,LayoutOrder=i})
+    mk("UICorner",b,{CornerRadius=UD(0,6)})
+    b.MouseButton1Click:Connect(function()
+      ST.target=pl
+      for j,pl2 in ipairs(P:GetPlayers()) do if pl2==pl then ST.idx=j end end
+      tgtTxt.Text="Alvo: "..pl.Name
+      paintList()
+    end)
+  end
+  pcall(function() listScroll.CanvasSize=U2(0,0,0,math.max(30,i*29+10)) end)
+end
+local function tgtTxt2()
+  tgtTxt.Text="Alvo: "..(ST.target and ST.target.Name or "?")
+  paintList()
+end
+tgtTxt2()
+P.PlayerAdded:Connect(tgtTxt2)
+P.PlayerRemoving:Connect(tgtTxt2)
 sect(tp,"Destino")
-btn(tp,"Salvar destino (minha posição agora)",saveDest)
+btn(tp,"Salvar destino (bem longe da área de fundir)",saveDest)
 btn(tp,"Teleportar em mim",function() tpTo(LP) end)
 btn(tp,"Mandar alvo para o destino",function() tpTo(ST.target) end)
 sect(tp,"Sistema")
@@ -1215,7 +1244,7 @@ mk("UICorner",logScroll,{CornerRadius=UD(0,8)})
 ord=ord+1
 renderLogs()
 btn(tp,"Limpar logs",function() table.clear(ST.logs) renderLogs() end)
-note(tp,"Salve um destino antes de teleportar. O alvo é o jogador escolhido no botão acima. Logs ficam salvos entre execuções.",44)
+note(tp,"Use para tirar alguém que está travando a fundidora: salve o destino LONGE da área de fundir, escolha o alvo na lista e clique em Mandar alvo para o destino.",52)
 
 --// PERSONAGEM
 local chp=pages["Personagem"]
@@ -1263,26 +1292,40 @@ sect(inf,"Cada função")
 note(inf,[[
 LOOP DE MISSÃO: ao entrar no jogo, entrega o ouro pendente, TP na missão escolhida
 (Trem de Noobs OU Chão e Lava) e aperta o botão Teletransportar.
-Auto-executa, escava todos os pontos WGC Gold Hunters, TP no portal
-Caçadores de Ouro 2.0, volta ao início, TP na área de fundir, clica Fundir,
-espera 2s e espera 10s (ou clica o botão da missão — opção para testar).
-Repete infinito até desligar. TP é instantâneo.
-AUTO CAVAR: equipa a escavadeira, vai ao ponto e aciona o prompt (hold).
-AUTO FUNDIR: com X minérios, vai à fundidora e transforma em barras.
-AUTO MELHORAR: procura prompts de melhoria e aciona sozinho.
+Auto-executa, percorre todos os pontos WGC Gold Hunters em sequência,
+entra no portal DA MISSÃO ESCOLHIDA (não é o portal de trás de você),
+volta ao início, TP na área de fundir, clica Fundir, espera 2s
+e espera 10s (ou clica no botão da missão — opção para testar).
+Repete infinito até desligar. TP é instantâneo. Tudo começa DESLIGADO.
+AUTO CAVAR: equipa a escavadeira da mochila, segura o prompt de Dig
+(InputHoldBegin/End) e, se achar um banco de escavadeira, senta nele.
+Busca os pontos que aparecem no vídeo (7/10 minério na parede).
+AUTO FUNDIR: com 10+ minérios, TP na fundidora e clica Fundir.
+AUTO MELHORAR: clica no painel MELHORIA DA FUNDIDORA quando há plano.
 AUTO NPC QUIZ: responde o quiz do NPC (+1 barra a cada 2h).
-AUTO MUSEU: resolve os 6 quizzes do museu (tiers de UGC).
-AUTO PEPITAS: vai à mina, escava, coleta a cota (que cresce com o progresso),
-volta ao início e entrega as pepitas na máquina.
-AUTO-EXECUTE: reexecuta o script ao teleportar/sair do servidor.
-]],296)
-sect(inf,"TP HUB")
+AUTO MUSEU: resolve os 6 quizzes do Museu do Ouro para liberar UGC.
+AUTO PEPITAS: escava, coleta a cota exigida (cresce com o progresso),
+volta ao início e entrega as pepitas na máquina de entrega.
+AUTO-EXECUTE: ao sair/teleportar, reexecuta o script sozinho.
+Só ativa se você ligar o card. Não executa várias vezes: ao executar
+de novo, a interface antiga é fechada antes de abrir a nova.
+]],410)
+sect(inf,"PUXA PLAYER (antes: TP Hub)")
 note(inf,[[
-Salvar destino: guarda onde você está agora.
-TP em mim: leva você para o destino salvo.
-Mandar alvo: leva o jogador escolhido para o destino.
-Logs: histórico de quem foi teleportado, com hora e coordenadas.
-]],86)
+Serve para resolver o bug da área de fundir: quando um player fica
+apertando a fundidora sem parar, ninguém mais consegue usar.
+
+PASSO A PASSO:
+1. Vá para bem longe da área de fundir e clique em
+   "Salvar destino (bem longe da área de fundir)".
+2. Na lista com scroll, escolha o player que está travando.
+   (Não precisa ficar clicando até achar: todos aparecem na lista.)
+3. Clique em "Mandar alvo para o destino".
+4. O player escolhido é puxado para longe e a fundidora libera.
+
+"Teleportar em mim" traz você até o destino salvo.
+Logs: histórico de quem foi puxado, com hora e coordenadas.
+]],220)
 sect(inf,"Atalhos da HUD")
 note(inf,[[
 Informação: abre esta aba (botão da HUD).
@@ -1304,7 +1347,7 @@ note(nv,[[
 * Painel de telemetria e status.
 * HUD: Barras, Mina, Planos + dock.
 * Noob Size, Avatar, Trails.
-* TP Hub com alvo, destino e logs.
+* Puxa Player: lista de players, salva destino e puxa.
 * Aba Info explicando cada função.
 ]],168)
 
@@ -1411,7 +1454,7 @@ bClose.MouseButton1Click:Connect(function()
   CFG.AutoNpc=false CFG.AutoMuseum=false CFG.AutoNugget=false CFG.Partner=false
   CFG.AutoMission=false CFG.AutoExec=false CFG.DeliverFirst=false
   if qtp then pcall(qtp,"") end
-  Store.RG_AUTO=nil Store.RG_MISSION=nil
+  if Store.RG_STOP then pcall(Store.RG_STOP) end
   gui:Destroy()
   toast("Reaper Gold","Fechado e automações desligadas.",3)
 end)
@@ -1421,5 +1464,4 @@ refreshTarget()
 renderLogs()
 show("Home")
 task.spawn(function() for _=1,40 do pcall(function() applyChar() end) task.wait(.4) end end)
-if CFG.AutoExec then autoExec(true) end
-toast("Reaper Gold v1","Missão "..MISS[CFG.Mission].n.." | auto-execute ligado.",5)
+toast("Reaper Gold v1","Pronto. Tudo desligado — abra Automação para escolher.",5)
