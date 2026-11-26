@@ -923,12 +923,47 @@ local function tpPart(p)
 end
 
 local function namedParts(words)
-  local out={}
+  local out,seen={},{}
+  local function add(o)
+    if o and o.Parent and not seen[o] then seen[o]=true out[#out+1]=o end
+  end
   for _,root in ipairs(workspace:GetChildren()) do
     if has(root.Name,words) then
       local b=root:IsA("BasePart") and root or root:FindFirstChildWhichIsA("BasePart",true)
-      if b then out[#out+1]=b end
+      add(b)
     end
+    for _,d in ipairs(root:GetDescendants()) do
+      if has(d.Name,words) or (d:IsA("ProximityPrompt") and has((d.ActionText or "").." "..(d.ObjectText or ""),words)) then
+        local b=d:IsA("BasePart") and d or d:FindFirstChildWhichIsA("BasePart",true)
+        if not b and d.Parent then b=d.Parent:FindFirstChildWhichIsA("BasePart",true) end
+        add(b or d.Parent)
+      end
+    end
+  end
+  return out
+end
+
+-- pontos de minério: procura no mapa INTEIRO, nao só prompt "dig"
+local OREW={"ore","miner","minério","minerio","gold","ouro","nugget","pepita","pedra","rock","bloco","deposit","veio","wall","parede","escav","dig","cav"}
+local function mineSpots()
+  local out,seen={},{}
+  local function add(o)
+    if o and o.Parent and not seen[o] then seen[o]=true out[#out+1]=o end
+  end
+  for _,root in ipairs(workspace:GetChildren()) do
+    if root~=workspace.CurrentCamera and root~=chr() then
+      for _,d in ipairs(root:GetDescendants()) do
+        if d:IsA("BasePart") and has(d.Name,OREW) then add(d)
+        elseif d:IsA("ProximityPrompt") and d.Enabled and has((d.ActionText or "").." "..(d.ObjectText or "").." "..(d.Parent and d.Parent.Name or ""),OREW) then
+          local b=d.Parent and d.Parent:FindFirstChildWhichIsA("BasePart",true)
+          add(b or d.Parent)
+        end
+      end
+    end
+  end
+  for _,p in ipairs(prompts()) do
+    local b=p.Parent and p.Parent:FindFirstChildWhichIsA("BasePart",true)
+    add(b or p.Parent)
   end
   return out
 end
@@ -985,20 +1020,39 @@ local function missionTick()
     mPhase("dig")
 
   elseif ph=="dig" then
-    local sp=findP(KEY.dig,10)
-    if #sp==0 then
-      ST.status="Fim da escavação — indo ao portal"
+    local spots=mineSpots()
+    ST.spots=#spots
+    if #spots==0 then
+      ST.status="Sem pontos de minério — indo ao portal"
       mPhase("portal")
       return
     end
-    if ST.midx>#sp then ST.midx=1 end
-    local t=sp[ST.midx]
-    if CFG.TpSpot then tpNear(t,3) end
+    if ST.midx>#spots then ST.midx=1 end
+    local o=spots[ST.midx]
+    if o:IsA("BasePart") then
+      tpPart(o)
+    else
+      tpNear(o,3)
+    end
+    task.wait(.08)
     equipDig()
-    fireP(t)
+    local did=false
+    if o:IsA("ProximityPrompt") then did=fireP(o)
+    else
+      for _,d in ipairs(o:GetDescendants()) do
+        if d:IsA("ProximityPrompt") and d.Enabled and fireP(d) then did=true break end
+        if d:IsA("ClickDetector") and pcall(function() fireclickdetector(d) end) then did=true break end
+      end
+    end
+    if not did then
+      for _,p in ipairs(prompts()) do
+        if (p.Parent==o or (o.Parent and p.Parent==o.Parent)) and fireP(p) then did=true break end
+      end
+    end
+    if not did then tpPart(o) end
     ST.midx=ST.midx+1
-    ST.spots=#sp
-    ST.status="WGC Gold Hunters: "..(ST.midx-1).."/"..#sp
+    ST.status="Mina "..(ST.midx-1).."/"..#spots..(did and " (cavando)" or " (pulando)")
+    task.wait(.28)
 
   elseif ph=="portal" then
     ST.status="Portal Caçadores de Ouro 2.0 (perto do spawn)"
