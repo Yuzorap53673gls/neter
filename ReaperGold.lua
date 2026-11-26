@@ -7,7 +7,7 @@ local TPS=game:GetService("TeleportService")
 local LP=P.LocalPlayer
 if not LP then return end
 local U2=UDim2.new local UD=UDim.new local C=Color3.fromRGB
-local F=Enum.Font local EIT=Enum.UserInputType local KC=Enum.KeyCode
+local F=Enum.Font local EIT=Enum.UserInputType
 
 local AC=C(226,54,74)
 local GD=C(255,199,64)
@@ -87,8 +87,8 @@ local bMin=barBtn("-",-96) local bMax=barBtn("o",-64) local bClose=barBtn("X",-3
 local mini=mk("TextButton",gui,{Size=U2(0,58,0,58),Position=U2(0,16,0,110),BackgroundColor3=AC,Visible=false,ZIndex=20})
 mk("UICorner",mini,{CornerRadius=UD(1,0)})
 mk("UIStroke",mini,{Color=C(255,140,160),Thickness=2})
-mk("TextLabel",mini,{Size=U2(1,0,0,18),Position=U2(0,0,0,13),Text="R",Font=F.GothamBold,TextSize=20,TextColor3=C(255,255,255)})
-mk("TextLabel",mini,{Size=U2(1,0,0,12),Position=U2(0,0,0,33),Text="Gold",Font=F.GothamBold,TextSize=8,TextColor3=C(255,240,240)})
+mk("TextLabel",mini,{Size=U2(1,0,0,18),Position=U2(0,0,0,13),Text="R",Font=F.GothamBold,TextSize=20,TextColor3=C(255,255,255),TextXAlignment=Enum.TextXAlignment.Center})
+mk("TextLabel",mini,{Size=U2(1,0,0,12),Position=U2(0,0,0,33),Text="Gold",Font=F.GothamBold,TextSize=8,TextColor3=C(255,240,240),TextXAlignment=Enum.TextXAlignment.Center})
 local function setMini(on) win.Visible=not on mini.Visible=on end
 
 local drag,dS,dP=false,nil,nil
@@ -174,7 +174,7 @@ end
 local chip=mk("Frame",side,{Size=U2(1,-14,0,34),Position=U2(0,7,1,-42),BackgroundTransparency=1})
 local av=mk("Frame",chip,{Size=U2(0,24,0,24),Position=U2(0,4,.5,-12),BackgroundColor3=GD})
 mk("UICorner",av,{CornerRadius=UD(1,0)})
-mk("TextLabel",av,{Size=U2(1,0,1,0),Text=string.sub(LP.Name,1,1):upper(),Font=F.GothamBold,TextSize=12,TextColor3=C(28,22,10)})
+mk("TextLabel",av,{Size=U2(1,0,1,0),Text=string.sub(LP.Name,1,1):upper(),Font=F.GothamBold,TextSize=12,TextColor3=C(28,22,10),TextXAlignment=Enum.TextXAlignment.Center})
 mk("TextLabel",chip,{Size=U2(1,-44,1,0),Position=U2(0,36,0,0),Text=LP.Name,Font=F.GothamMedium,TextSize=11,TextColor3=MU,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd})
 
 --// COMPONENTES
@@ -201,7 +201,7 @@ local function tog(par,t,k,cb)
   tlab(r,t)
   local pill=mk("Frame",r,{Size=U2(0,44,0,22),Position=U2(1,-54,.5,-11),BackgroundColor3=C(70,64,74)})
   mk("UICorner",pill,{CornerRadius=UD(1,0)})
-  local tx=mk("TextLabel",pill,{Size=U2(1,0,1,0),Text="OFF",Font=F.GothamBold,TextSize=10,TextColor3=C(240,236,241)})
+  local tx=mk("TextLabel",pill,{Size=U2(1,0,1,0),Text="OFF",Font=F.GothamBold,TextSize=10,TextColor3=C(240,236,241),TextXAlignment=Enum.TextXAlignment.Center})
   local function paint()
     local on=CFG[k] and true or false
     pill.BackgroundColor3=on and GR or C(70,64,74)
@@ -221,7 +221,7 @@ local function card(par,t,d,k,cb)
   mk("TextLabel",r,{Size=U2(1,-104,0,26),Position=U2(0,11,0,25),Text=d,Font=F.Gotham,TextSize=10,TextColor3=MU,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true,TextYAlignment=Enum.TextYAlignment.Top,TextTruncate=Enum.TextTruncate.AtEnd})
   local pill=mk("Frame",r,{Size=U2(0,58,0,23),Position=U2(1,-70,.5,-11.5),BackgroundColor3=C(70,64,74)})
   mk("UICorner",pill,{CornerRadius=UD(1,0)})
-  local tx=mk("TextLabel",pill,{Size=U2(1,0,1,0),Text="OFF",Font=F.GothamBold,TextSize=10,TextColor3=C(240,236,241)})
+  local tx=mk("TextLabel",pill,{Size=U2(1,0,1,0),Text="OFF",Font=F.GothamBold,TextSize=10,TextColor3=C(240,236,241),TextXAlignment=Enum.TextXAlignment.Center})
   local function paint()
     local on=CFG[k] and true or false
     pill.BackgroundColor3=on and GR or C(70,64,74)
@@ -277,7 +277,6 @@ local function infJump()
 end
 UIS.JumpRequest:Connect(infJump)
 
-local noclip=false
 RS.Stepped:Connect(function()
   if not gui.Parent then return end
   applyChar()
@@ -835,8 +834,6 @@ end)
 sect(cfgP,"Servidor")
 btn(cfgP,"Copiar JobId",function() if setclipboard then setclipboard(game.JobId) end toast("Reaper Gold","JobId copiado.",3) end)
 btn(cfgP,"Reconectar neste servidor",function() pcall(function() TPS:TeleportToPlaceInstance(game.PlaceId,game.JobId,LP) end) end)
-sect(cfgP,"Sobre")
-note(cfgP,"Hub feito no estilo do Reaper Aim. Tudo roda no cliente: se o jogo usar validação no servidor, algumas automações podem não funcionar.",56)
 
 --// INFO
 local inf=pages.Info
@@ -879,7 +876,7 @@ note(nv,[[
   NPC quiz, museu UGC e pepitas.
 * Modo parceiro (cava + funde + volta).
 * Painel de telemetria e status.
-* HUD: Noobs, Speed, Jump, dock.
+* HUD: Barras, Mina, Planos + dock.
 * Noob Size, Avatar, Trails.
 * TP Hub com alvo, destino e logs.
 * Aba Info explicando cada função.
@@ -896,8 +893,8 @@ local function statCard(y,title)
   local f=mk("Frame",hud,{Size=U2(0,112,0,40),Position=U2(0,12,0,y),BackgroundColor3=C(26,22,30),BackgroundTransparency=.15})
   mk("UICorner",f,{CornerRadius=UD(0,8)})
   mk("UIStroke",f,{Color=C(92,74,92),Thickness=1,Transparency=.5})
-  mk("TextLabel",f,{Size=U2(1,0,0,13),Position=U2(0,0,0,4),Text=title,Font=F.GothamBold,TextSize=10,TextColor3=MU})
-  local v=mk("TextLabel",f,{Size=U2(1,0,0,18),Position=U2(0,0,0,17),Text="0",Font=F.GothamBold,TextSize=15,TextColor3=TX})
+  mk("TextLabel",f,{Size=U2(1,0,0,13),Position=U2(0,0,0,4),Text=title,Font=F.GothamBold,TextSize=10,TextColor3=MU,TextXAlignment=Enum.TextXAlignment.Center})
+  local v=mk("TextLabel",f,{Size=U2(1,0,0,18),Position=U2(0,0,0,17),Text="0",Font=F.GothamBold,TextSize=15,TextColor3=TX,TextXAlignment=Enum.TextXAlignment.Center})
   return v
 end
 local vBars=statCard(58,"Barras de Ouro")
