@@ -891,8 +891,8 @@ local function autoExec(on)
 end
 
 --// MISSOES: Trem de Noobs / Chao e Lava (loop automatico)
-local MISS={{n="Trem de Noobs",w={"noob","trem","train","nobb"},port={"trem de noobs","noob","trem","train","nobb"}},
-            {n="Chão e Lava",w={"lava","chao","chão","floor","ground"},port={"lava","chão e lava","chao","lava floor","lava chao"}}}
+local MISS={{n="Trem de Noobs",w={"trem de noobs","trem","noobs","nobb"},port={"caçad","cacad","hunter","gold hunters","2.0"}},
+            {n="Chão e Lava",w={"chão é lava","chao é lava","chão e lava","o chão é lava","lava","chao"},port={"caçad","cacad","hunter","gold hunters","2.0"}}}
 local BTP={"teletransport","teleport","entrar","start","jogar","play"}
 local SMW={"fundir","fundição","fundicao","smelt","processar"}
 
@@ -949,8 +949,8 @@ local function namedParts(words)
   return out
 end
 
--- pontos de minério: so pepita/minerio puro, NUNCA portal/fundidora
-local OREW={"ore","miner","minério","minerio","nugget","pepita","pedra","rock","bloco","deposit","veio","parede","wall","escav","dig","cav"}
+-- minas reais do jogo (confirmadas no scan): PlatformGold / FurnaceTier2_Gold / @LIQUID_GOLD
+local OREW={"platformgold","furnacetier","liquid_gold","liquidgold","goldore","gold_ore","ore","miner","minério","minerio","nugget","pepita"}
 local BADW={"teletransport","teleport","portal","fundir","fundi","smelt","upgrade","melhor","museum","musu","npc","quiz","loja","shop","lobby","caçad","cacad","hunter"}
 local function isGood(s)
   s=string.lower(s or "")
@@ -1020,8 +1020,23 @@ local function scanMap()
   pcall(function() scan(LP:FindFirstChild("PlayerGui")) end)
   if gethui then pcall(function() scan(gethui()) end) end
   local txt=table.concat(L,"\n")
+  Store.RG_SCAN=txt
   if setclipboard then pcall(setclipboard,txt) end
   return txt
+end
+
+-- mostra o scan salvo dentro do painel, em partes, para selecionar e copiar
+local function showScan()
+  local txt=Store.RG_SCAN or "(vazio)"
+  local f=mk("Frame",gui,{Size=U2(0,460,0,300),Position=U2(.5,0,.5,-150),BackgroundColor3=BG,ZIndex=60,Active=true})
+  mk("UICorner",f,{CornerRadius=UD(0,10)})
+  mk("UIStroke",f,{Color=GD,Thickness=2})
+  local title=mk("TextLabel",f,{Size=U2(1,0,0,26),Position=U2(0,8,0,0),Text="SCAN DO MAPA (selecione e copie)",Font=F.GothamBold,TextSize=12,TextColor3=GD,TextXAlignment=Enum.TextXAlignment.Center})
+  local box=mk("TextBox",f,{Size=U2(1,-24,1,-70),Position=U2(0,12,0,32),BackgroundColor3=PN,Text=txt,Font=F.Code,TextSize=9,TextColor3=TX,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,TextWrapped=false,ClearTextOnFocus=false,MultiLine=true})
+  mk("UICorner",box,{CornerRadius=UD(0,8)})
+  local close=mk("TextButton",f,{Size=U2(0,100,0,26),Position=U2(1,-112,1,-32),BackgroundColor3=AC,Text="FECHAR",Font=F.GothamBold,TextSize=11,TextColor3=C(255,255,255)})
+  mk("UICorner",close,{CornerRadius=UD(0,6)})
+  close.MouseButton1Click:Connect(function() f:Destroy() end)
 end
 
 local function mPhase(p)
@@ -1068,22 +1083,16 @@ local function missionTick()
     local m=MISS[CFG.Mission] or MISS[1]
     ST.status="Entrando: "..m.n
     local ok=false
-    -- 1) acha o PROMPT do portal pelo texto dele (ex: "Trem de Noobs  Teletransportar")
+    -- prompts: ActionText "Teleport" + ObjectText com o nome da missao
     for _,p in ipairs(prompts()) do
       if p.Enabled and has((p.ActionText or "").." "..(p.ObjectText or "").." "..(p.Parent and p.Parent.Name or ""),m.w) then
         if CFG.TpSpot then tpNear(p,3) end
         task.wait(.08)
-        if fireP(p) then ok=true break end
+        if fireP(p) then ok=true ST.status="Entrou: "..(p.ObjectText or m.n) break end
       end
     end
-    -- 2) botão da UI com o nome da missão ou Teletransportar
     if not ok then ok=clickText(m.w) end
     if not ok then ok=clickText(BTP) end
-    -- 3) partes nomeadas como último recurso
-    if not ok then
-      local c=namedParts(m.w)
-      if #c>0 then tpPart(c[1]) task.wait(.1) clickText(BTP) end
-    end
     Store.RG_MISSION={phase="dig",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
     autoExec(true)
     mPhase("dig")
@@ -1326,11 +1335,12 @@ btn(pa,"Escanear prompts do mapa",function()
   ST.status="Prompts encontrados: "..n.."  |  pontos de escavação: "..#findP(KEY.dig,9)
 end)
 btn(pa,"Zerar contadores da sessão",function() ST.session=0 ST.ores=0 ST.bars=0 ST.status="Contadores zerados" end)
-btn(pa,"ESCANEAR MAPA (copia tudo)",function()
+btn(pa,"ESCANEAR MAPA (salva no script)",function()
   local t=scanMap()
-  if setclipboard then toast("Reaper Gold","Mapa copiado ("..#t.." chars). Cole aqui.",5) end
-  ST.status="Mapa escaneado: "..#t.." caracteres"
+  toast("Reaper Gold","Mapa salvo ("..#t.." chars). Clique em VER SCAN.",5)
+  ST.status="Mapa salvo: "..#t.." caracteres"
 end)
+btn(pa,"VER SCAN (selecionar por partes)",function() showScan() end)
 
 local aj=segP["Ajustes"]
 sect(aj,"Comportamento")
