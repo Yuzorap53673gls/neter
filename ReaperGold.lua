@@ -21,15 +21,17 @@ local MU=C(152,144,154)
 
 local CFG={
 Hud=true,Scale=100,Notify=true,
-AutoDig=false,AutoSmelt=false,AutoUpgrade=false,AutoNpc=false,AutoMuseum=false,AutoNugget=false,Partner=false,
+AutoDig=true,AutoSmelt=true,AutoUpgrade=true,AutoNpc=true,AutoMuseum=false,AutoNugget=true,Partner=true,AutoExec=true,AutoMission=true,Mission=1,WaitMode=1,DeliverFirst=true,
 SmeltAt=10,Delay=1.2,TpSpot=true,
+NuggetNeed=15,NuggetStep=2,
 Esp=false,EspName=true,Fog=false,Full=false,AntiLag=false,
 Speed=16,Jump=50,InfJump=false,Noclip=false,
 NoobSize=100,Trails=false,Avatar=false,TpOn=true,
 }
 
 local ST={esp={},logs={},idx=1,target=LP,dest=nil,status="Pronto",
-ores=0,bars=0,bp=0,spots=0,session=0,cd={},acc=nil,bc=nil,trail=nil,lastSpot=nil,noobs=0}
+ores=0,bars=0,bp=0,spots=0,session=0,cd={},acc=nil,bc=nil,trail=nil,lastSpot=nil,noobs=0,
+home=nil,nug=nil,got=0,need=15,phase="parado",mphase="check",midx=1,mwait=0}
 
 local hud
 local function mk(c,p,t)
@@ -359,13 +361,15 @@ end
 
 --// SISTEMA DE PROMPTS
 local KEY={
-dig={"dig","cav","escav","miner","mine","escava"},
+dig={"dig","cav","escav","miner","mine","minera","escava","picareta","shovel","drill"},
 smelt={"fund","smelt","forge","process","usina"},
+deliver={"deposit","deliver","entreg","depos","vender","sell","process","usina","maquina","máquina","fundidor","smelt"},
 up={"melhor","upgrad","equip","aument"},
 quiz={"quiz","pergunt","answer","respost","trivia","escolh","option"},
 nug={"nugget","pepita","collect","colet","ouro","gold"},
-hub={"hub","fundidora","smelt","usina","loja","shop"},
+hub={"hub","fundidora","smelt","usina","loja","shop","lobby"},
 }
+local NUG={"nugget","pepita","goldore","gold_ore","gold ore","minerio","minério","collectible","pickup","goldnugget","gold bar","barra de ouro"}
 
 local function has(s,list)
   s=string.lower(s or "")
@@ -407,20 +411,32 @@ local function tpNear(obj,dist)
   else base=obj:FindFirstChildWhichIsA("BasePart",true) end
   if not base and obj.Parent then base=obj.Parent:FindFirstChildWhichIsA("BasePart",true) end
   if not base then return false end
-  pcall(function() r.CFrame=base.CFrame*CFrame.new(0,3,-(dist or 5)) end)
+  local p=base.Position
+  local sz=base.Size
+  local d=math.max(dist or 4,math.max(sz.X,sz.Z)*.5+1.5)
+  pcall(function()
+    r.CFrame=CFrame.new(p+Vector3.new(0,math.max(2,sz.Y*.5+1),d),p)
+  end)
   return true
 end
 
-local function fireP(p)
+local function fireP(p,hold)
   if not p or not p.Parent then return false end
   local ok=false
-  if fireproximityprompt then ok=pcall(fireproximityprompt,p) end
-  if ok then return true end
+  local h=hold or p.HoldDuration or 0
+  if fireproximityprompt then
+    ok=pcall(fireproximityprompt,p,h)
+    if ok then
+      if h>0 then task.wait(math.min(h+.05,.8)) end
+      return true
+    end
+  end
   ok=pcall(function()
     p:InputHoldBegin()
-    task.wait(math.clamp((p.HoldDuration or 0)+0.1,.1,.6))
+    task.wait(math.clamp(h+.12,.12,1.2))
     p:InputHoldEnd()
   end)
+  if not ok then ok=pcall(function() p:InputHoldBegin() p:InputHoldEnd() end) end
   return ok
 end
 
@@ -464,6 +480,133 @@ local function lsLine()
   return table.concat(out,"   |   ")
 end
 
+--// PEPITAS: mina -> coleta -> inicio -> entrega
+local ncache={t=0,list={}}
+local function nuggets()
+  local n=os.clock()
+  if n-ncache.t<.7 then return ncache.list end
+  ncache.t=n
+  local out,seen={},{}
+  local c=chr()
+  local function add(o)
+    if o and o.Parent and not seen[o] then seen[o]=true table.insert(out,o) end
+  end
+  for _,root in ipairs(workspace:GetChildren()) do
+    if root~=workspace.CurrentCamera and not (c and root==c) then
+      if root:IsA("BasePart") and has(root.Name,NUG) then add(root) end
+      for _,d in ipairs(root:GetDescendants()) do
+        if d:IsA("BasePart") and has(d.Name,NUG) then add(d)
+        elseif d:IsA("ProximityPrompt") and d.Enabled and has((d.ActionText or "").." "..(d.ObjectText or "").." "..(d.Parent and d.Parent.Name or ""),NUG) then add(d.Parent)
+        elseif d:IsA("ClickDetector") and has(d.Parent and d.Parent.Name or "",NUG) then add(d.Parent) end
+      end
+    end
+  end
+  for _,p in ipairs(prompts()) do
+    if p.Enabled and has((p.ActionText or "").." "..(p.ObjectText or ""),{"colet","collect","pegar","pick"}) then add(p.Parent) end
+  end
+  ncache.list=out
+  return out
+end
+
+local function touchPart(o)
+  local r=hrp()
+  if not r or not o then return false end
+  if o:IsA("ProximityPrompt") then return fireP(o) end
+  if o:IsA("ClickDetector") then return pcall(function() fireclickdetector(o) end) end
+  local base=o:IsA("BasePart") and o or o:FindFirstChildWhichIsA("BasePart",true)
+  if not base and o.Parent then base=o.Parent:FindFirstChildWhichIsA("BasePart",true) end
+  if not base then return false end
+  local p=base.Position
+  local up={1.5,0,3}
+  for i=1,#up do
+    pcall(function() r.CFrame=CFrame.new(p+Vector3.new(0,up[i],0)) end)
+    pcall(function()
+      if firetouchinterest then firetouchinterest(r,base,0) firetouchinterest(r,base,1) end
+    end)
+    task.wait(.06)
+  end
+  local par=base.Parent
+  if par and par:IsA("Tool") then
+    local h=hum()
+    if h then pcall(function() h:EquipTool(par) end) end
+  end
+  for _,d in ipairs(base:GetChildren()) do
+    if d:IsA("ClickDetector") then pcall(function() fireclickdetector(d) end) end
+    if d:IsA("ProximityPrompt") then fireP(d) end
+  end
+  return true
+end
+
+local function quota()
+  local cap=num({"max","capac","cap","limite","slot","space","espa"})
+  if cap and cap>0 then return math.floor(cap) end
+  local q=num({"need","required","requis","quota","meta","objetivo","necessar","target","requer"})
+  if q and q>0 then return math.floor(q) end
+  local prog=num({"level","nivel","rank","prestig"}) or num(BAR) or 0
+  return math.max(1,math.floor(CFG.NuggetNeed+prog*CFG.NuggetStep))
+end
+
+local function baseCF()
+  if ST.home then return ST.home end
+  local s=workspace:FindFirstChildOfClass("SpawnLocation")
+  if s then return s.CFrame*CFrame.new(0,3,0) end
+  local r=hrp()
+  if r then ST.home=r.CFrame return ST.home end
+end
+
+local function goHome()
+  local cf=baseCF()
+  local r=hrp()
+  if not cf or not r then return false end
+  pcall(function() r.CFrame=cf end)
+  task.wait(.35)
+  return true
+end
+
+local function deliver()
+  local list=findP(KEY.deliver,4)
+  if #list==0 then list=findP(KEY.smelt,2) end
+  if #list==0 then list=findP(KEY.hub,2) end
+  for _,p in ipairs(list) do
+    if CFG.TpSpot then tpNear(p,4) task.wait(.15) end
+    if fireP(p) then return true end
+  end
+  local cf=baseCF()
+  local hp=cf and cf.Position
+  for _,d in ipairs(workspace:GetDescendants()) do
+    if d:IsA("BasePart") and has(d.Name,{"entreg","deposit","deliver","usina","machine","maquina","máquina","fundid","process"}) then
+      if not hp or (d.Position-hp).Magnitude<180 then touchPart(d) return true end
+    end
+  end
+  return false
+end
+
+local function equipDig()
+  local bp=LP:FindFirstChild("Backpack")
+  local h=hum()
+  if not bp or not h then return false end
+  for _,t in ipairs(bp:GetChildren()) do
+    if t:IsA("Tool") and has(t.Name,KEY.dig) then
+      if pcall(function() h:EquipTool(t) end) then return true end
+    end
+  end
+  return false
+end
+
+local function rideDigger()
+  local h=hum()
+  local r=hrp()
+  if not h or not r then return false end
+  for _,d in ipairs(workspace:GetDescendants()) do
+    if d:IsA("VehicleSeat") and has(d.Name,{"escav","miner","dig","drill","trator"}) then
+      pcall(function() r.CFrame=d.CFrame*CFrame.new(0,3,0) end)
+      task.wait(.12)
+      if pcall(function() d:Sit(h) end) then return true end
+    end
+  end
+  return false
+end
+
 --// AUTOMACAO
 local function autoDig()
   local sp=findP(KEY.dig,3)
@@ -471,12 +614,16 @@ local function autoDig()
   if #sp==0 then ST.status="Nenhum ponto de escavação por perto" return end
   local p=sp[1]
   local base=p.Parent
-  if CFG.TpSpot then tpNear(p,5) task.wait(.15) end
+  if CFG.TpSpot then tpNear(p,3.5) task.wait(.12) end
+  equipDig()
   if fireP(p) then
     ST.status="Cavando: "..(base and base.Name or "?")
     ST.lastSpot=base
     ST.ores=ST.ores+1
     ST.session=ST.session+1
+    ncache.t=0
+  elseif ready("ride",2) and rideDigger() then
+    ST.status="Usando a escavadeira"
   else
     ST.status="Prompt recusado: "..(base and base.Name or "?")
   end
@@ -501,14 +648,6 @@ local function autoUpgrade()
   if fireP(p) then ST.status="Melhorando equipamento" end
 end
 
-local function autoNugget()
-  local sp=findP(KEY.nug,4)
-  if #sp==0 then ST.status="Nenhuma pepita visível" return end
-  local p=sp[1]
-  if CFG.TpSpot then tpNear(p,4) task.wait(.12) end
-  if fireP(p) then ST.status="Coletando: "..(p.Parent and p.Parent.Name or "pepita") end
-end
-
 local function autoQuiz()
   local sp=findP(KEY.quiz,4)
   if #sp==0 then ST.status="Nenhum quiz por perto" return end
@@ -523,6 +662,85 @@ local function autoMuseum()
   if #hub>0 and CFG.TpSpot then tpNear(hub[1],6) task.wait(.2) end
   autoQuiz()
   ST.status="Museu: respondendo quizzes (UGC)"
+end
+
+local function nugTick()
+  local s=ST.nug
+  if not s then
+    s={phase="mine",got=0,need=quota(),base=num(ORE) or 0}
+    ST.nug=s ST.got=0 ST.need=s.need
+  end
+  ST.phase=s.phase
+  local cur=num(ORE)
+  if cur and s.base then s.got=math.max(s.got,cur-s.base) end
+  if s.got<0 then s.got=0 end
+  ST.got=s.got
+
+  if s.phase=="mine" then
+    local sp=findP(KEY.dig,3)
+    ST.spots=#sp
+    if #sp>0 then
+      local p=sp[1]
+      if CFG.TpSpot then tpNear(p,3.5) task.wait(.1) end
+      equipDig()
+      if fireP(p) then
+        ST.lastSpot=p.Parent ncache.t=0
+        ST.status="Escavando ("..s.got.."/"..s.need..")"
+        ST.session=ST.session+1
+      elseif ready("ride",2) and rideDigger() then
+        ST.status="Usando a escavadeira"
+      end
+    elseif ready("ride",2) and rideDigger() then
+      ST.status="Usando a escavadeira"
+    end
+    task.wait(.3)
+    if #nuggets()>0 then s.phase="take"
+    else ST.status="Procurando mina/pepitas ("..s.got.."/"..s.need..")" end
+
+  elseif s.phase=="take" then
+    local nl=nuggets()
+    if #nl==0 then
+      s.phase=(s.got>=s.need) and "home" or "mine"
+      return
+    end
+    for i=1,math.min(#nl,5) do
+      local o=nl[i]
+      if o and o.Parent then
+        touchPart(o)
+        s.got=s.got+1
+        local now=num(ORE)
+        if now and s.base then s.got=math.max(s.got,now-s.base) end
+        ST.got=s.got
+        ST.status="Coletando pepita "..s.got.."/"..s.need
+        task.wait(.1)
+      end
+    end
+    ncache.t=0
+    if s.got>=s.need then s.phase="home" end
+
+  elseif s.phase=="home" then
+    ST.status="Voltando ao início ("..s.got.."/"..s.need..")"
+    goHome()
+    s.phase="deliver"
+
+  elseif s.phase=="deliver" then
+    ST.status="Entregando "..s.got.." pepitas na máquina"
+    local ok=deliver()
+    task.wait(.4)
+    if ok then
+      s.got=0 ST.got=0
+      s.base=num(ORE) or 0
+      s.need=quota() ST.need=s.need
+      s.phase="mine"
+      ST.status="Entrega feita. Nova cota: "..s.need
+      toast("Reaper Gold","Pepitas entregues. Nova cota: "..s.need..".",3)
+      if CFG.AutoSmelt then autoSmelt() end
+      if CFG.AutoUpgrade then autoUpgrade() end
+    else
+      s.phase="mine"
+      ST.status="Máquina não achada — voltando à mina"
+    end
+  end
 end
 
 task.spawn(function()
@@ -549,7 +767,12 @@ task.spawn(function()
         return
       end
       if CFG.AutoUpgrade and ready("up",6) then autoUpgrade() return end
-      if CFG.AutoNugget and ready("nug",1.6) then autoNugget() return end
+      if CFG.AutoMission then return end
+      if CFG.AutoNugget then
+        if ready("nugtick",.35) then nugTick() end
+        return
+      end
+      ST.nug=nil ST.phase="parado"
       if CFG.AutoNpc and ready("npc",5) then autoQuiz() return end
       if CFG.AutoMuseum and ready("mus",7) then autoMuseum() return end
     end)
@@ -636,6 +859,187 @@ end
 local Store=(typeof(getgenv)=="function" and getgenv()) or _G
 if type(Store.RG_TP_Logs)~="table" then Store.RG_TP_Logs={} end
 ST.logs=Store.RG_TP_Logs
+
+--// AUTO-EXECUTE (reenvia o script ao teleportar / trocar de servidor)
+local SCRIPT_URL="https://raw.githubusercontent.com/Yuzorap53673gls/neter/main/ReaperGold.min.lua"
+local LOADER='loadstring(game:HttpGet("'..SCRIPT_URL..'"))()'
+local qtp=(syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport) or queue_on_teleport or Store.queue_on_teleport
+
+local function autoExec(on)
+  CFG.AutoExec=on and true or false
+  if not on then
+    if qtp then pcall(qtp,"") end
+    Store.RG_AUTO=nil
+    return false
+  end
+  Store.RG_AUTO=LOADER
+  if qtp then pcall(qtp,LOADER) end
+  return true
+end
+
+--// MISSOES: Trem de Noobs / Chao e Lava (loop automatico)
+local MISS={{n="Trem de Noobs",w={"noob","trem","train","nobb"}},
+            {n="Chão e Lava",w={"lava","chao","chão","floor","ground"}}}
+local BTP={"teletransport","teleport","entrar","start","jogar","play"}
+local SMW={"fundir","fundição","fundicao","smelt","processar"}
+
+local function uiBtns(words)
+  local out={}
+  local function scan(g)
+    if not g then return end
+    for _,d in ipairs(g:GetDescendants()) do
+      if d:IsA("GuiButton") and d.Visible and has(d.Text or "",words) then out[#out+1]=d end
+    end
+  end
+  pcall(function() scan(game:GetService("CoreGui")) end)
+  pcall(function() scan(LP:FindFirstChild("PlayerGui")) end)
+  if gethui then pcall(function() scan(gethui()) end) end
+  return out
+end
+
+local function clickText(words)
+  for _,b in ipairs(uiBtns(words)) do
+    local ok=false
+    if firesignal then ok=pcall(firesignal,b.MouseButton1Click) end
+    if not ok then ok=pcall(function() b.MouseButton1Click:Fire() end) end
+    if ok then return true end
+  end
+  return false
+end
+
+local function tpPart(p)
+  local r=hrp()
+  if not r or not p or not p:IsA("BasePart") then return false end
+  local pos=p.Position
+  pcall(function() r.CFrame=CFrame.new(pos+Vector3.new(0,3,0),pos) end)
+  return true
+end
+
+local function namedParts(words)
+  local out={}
+  for _,root in ipairs(workspace:GetChildren()) do
+    if has(root.Name,words) then
+      local b=root:IsA("BasePart") and root or root:FindFirstChildWhichIsA("BasePart",true)
+      if b then out[#out+1]=b end
+    end
+  end
+  return out
+end
+
+local function mPhase(p)
+  ST.mphase=p
+  Store.RG_MISSION={phase=p,mission=CFG.Mission,waitmode=CFG.WaitMode,idx=ST.midx}
+end
+
+if type(Store.RG_MISSION)=="table" then
+  CFG.Mission=Store.RG_MISSION.mission or CFG.Mission
+  CFG.WaitMode=Store.RG_MISSION.waitmode or CFG.WaitMode
+  ST.midx=Store.RG_MISSION.idx or 1
+  if Store.RG_MISSION.phase=="dig" or Store.RG_MISSION.phase=="smelt" then
+    ST.mphase=Store.RG_MISSION.phase
+  end
+end
+
+pcall(function()
+  LP.OnTeleport:Connect(function(state)
+    if state~=Enum.TeleportState.Started then return end
+    if ST.mphase=="enter" then Store.RG_MISSION={phase="dig",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1} end
+    if ST.mphase=="portal" then Store.RG_MISSION={phase="smelt",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1} end
+  end)
+end)
+
+local function missionTick()
+  local ph=ST.mphase
+  if ph=="check" then
+    local pend=num(ORE) or 0
+    if CFG.DeliverFirst and (pend>0 or ST.got>0) then
+      ST.status="Entregando ouro pendente ("..pend..") antes das missões"
+      local sp=findP(KEY.deliver,4)
+      if #sp==0 then sp=findP(KEY.smelt,3) end
+      if #sp>0 and CFG.TpSpot then tpNear(sp[1],4) end
+      clickText(SMW)
+      clickText({"entregar","depositar","deliver","deposit"})
+      task.wait(2)
+      ST.got=0
+      if ST.nug then ST.nug.got=0 ST.nug.base=num(ORE) or 0 end
+      ST.status="Entrega concluída. Iniciando missão"
+    end
+    mPhase("enter")
+
+  elseif ph=="enter" then
+    local m=MISS[CFG.Mission] or MISS[1]
+    ST.status="Entrando: "..m.n
+    local c=namedParts(m.w)
+    if #c>0 then tpPart(c[1]) task.wait(.1) end
+    if CFG.WaitMode==2 then clickText(m.w) end
+    Store.RG_MISSION={phase="dig",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
+    clickText(BTP)
+    autoExec(true)
+    mPhase("dig")
+
+  elseif ph=="dig" then
+    local sp=findP(KEY.dig,10)
+    if #sp==0 then
+      ST.status="Fim da escavação — indo ao portal"
+      mPhase("portal")
+      return
+    end
+    if ST.midx>#sp then ST.midx=1 end
+    local t=sp[ST.midx]
+    if CFG.TpSpot then tpNear(t,3) end
+    equipDig()
+    fireP(t)
+    ST.midx=ST.midx+1
+    ST.spots=#sp
+    ST.status="WGC Gold Hunters: "..(ST.midx-1).."/"..#sp
+
+  elseif ph=="portal" then
+    ST.status="Portal Caçadores de Ouro 2.0"
+    local c=namedParts({"portal","caçad","cacad","hunter","goldhunter","2.0","lobby"})
+    if #c>0 then tpPart(c[1]) task.wait(.1) end
+    Store.RG_MISSION={phase="smelt",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
+    clickText(BTP)
+    autoExec(true)
+    mPhase("smelt")
+
+  elseif ph=="smelt" then
+    ST.status="Area de fundir ouro"
+    local sp=findP(KEY.smelt,3)
+    if #sp>0 and CFG.TpSpot then tpNear(sp[1],4) end
+    clickText(SMW)
+    task.wait(2)
+    ST.mwait=os.clock()
+    mPhase("wait")
+
+  elseif ph=="wait" then
+    if CFG.WaitMode==1 then
+      local left=10-(os.clock()-ST.mwait)
+      if left<=0 then
+        ST.status="10s: reentrando na missão"
+        clickText(BTP)
+        mPhase("enter")
+      else
+        ST.status="Verificando/entregando barras: "..math.ceil(left).."s"
+      end
+    else
+      local m=MISS[CFG.Mission] or MISS[1]
+      if clickText(m.w) then
+        ST.status="Botão da missão acionado"
+        mPhase("enter")
+      else
+        ST.status="Botão da missão não encontrado"
+        task.wait(1)
+      end
+    end
+  end
+end
+
+task.spawn(function()
+  while gui.Parent do
+    task.wait(.3)
+    pcall(function() if CFG.AutoMission and ready("mission",.5) then missionTick() end end)
+  end
+end)
 
 local logScroll
 local function renderLogs()
@@ -724,15 +1128,31 @@ for m,q in pairs(segB) do
 end
 
 local au=segP["Automação"]
+sect(au,"LOOP DE MISSÃO (principal)")
+local m1,m2,wb
+local function paintMission()
+  if m1 then m1:FindFirstChildWhichIsA("TextLabel").Text=(CFG.Mission==1 and "> " or "   ").."Missão: Trem de Noobs" end
+  if m2 then m2:FindFirstChildWhichIsA("TextLabel").Text=(CFG.Mission==2 and "> " or "   ").."Missão: Chão e Lava" end
+  if wb then wb:FindFirstChildWhichIsA("TextLabel").Text="Entrega: "..(CFG.WaitMode==1 and "esperar 10 segundos" or "clicar no botão da missão") end
+end
+m1=btn(au,"Missão: Trem de Noobs",function() CFG.Mission=1 paintMission() end)
+m2=btn(au,"Missão: Chão e Lava",function() CFG.Mission=2 paintMission() end)
+wb=btn(au,"Entrega: esperar 10 segundos",function() CFG.WaitMode=CFG.WaitMode==1 and 2 or 1 paintMission() end)
+paintMission()
+card(au,"Auto Missão (loop)","Entra na missão, escava no WGC, vai ao portal, funde e repete","AutoMission")
+card(au,"Auto-Execute","Reexecuta sozinho ao teleportar/sair do servidor","AutoExec",function(v) autoExec(v) end)
+tog(au,"Entregar ouro antes das missões","DeliverFirst")
 sect(au,"Automação do jogo")
-card(au,"Auto Cavar","Escava nos pontos de minério automaticamente",("AutoDig"),function(v) ST.status=v and "Auto cavar ligado" or "Auto cavar desligado" end)
+card(au,"Auto Cavar","Equipa a escavadeira e escava nos pontos de minério","AutoDig")
 card(au,"Auto Fundir Barras","Smelta quando tiver 10+ minérios de ouro","AutoSmelt")
 card(au,"Auto Melhorar","Usa a fundidora/equipamento para melhorar sozinho","AutoUpgrade")
 card(au,"Auto NPC Quiz (+1 barra)","Responde o quiz do NPC a cada 2 horas","AutoNpc")
 card(au,"Auto Museu (UGC)","Resolve os 6 quizzes do museu para liberar UGC","AutoMuseum")
-card(au,"Auto Coletar Pepitas","Coleta os 15 itens do hub a cada reset de 2h","AutoNugget")
+card(au,"Auto Coletar Pepitas","Vai à mina, escava, pega a cota e entrega na máquina","AutoNugget")
 card(au,"Modo Parceiro","Cava e, ao encher o saco, volta ao hub para fundir e melhorar","Partner")
 sect(au,"Ajustes rápidos")
+step(au,"Cota base de pepitas","NuggetNeed",1,1,99)
+step(au,"Aumento da cota por progresso","NuggetStep",1,0,10)
 step(au,"Fundir a partir de (minério)","SmeltAt",1,1,99)
 step(au,"Intervalo do cavar (s)","Delay",0.2,0.4,6)
 tog(au,"Teleportar até o ponto","TpSpot")
@@ -760,7 +1180,7 @@ step(aj,"Escala da interface %","Scale",10,60,180,function(v) uisc.Scale=v/100 e
 sect(aj,"Manutenção")
 btn(aj,"Resetar toda a configuração",function()
   CFG.AutoDig=false CFG.AutoSmelt=false CFG.AutoUpgrade=false CFG.AutoNpc=false
-  CFG.AutoMuseum=false CFG.AutoNugget=false CFG.Partner=false
+  CFG.AutoMuseum=false CFG.AutoNugget=false CFG.Partner=false CFG.AutoMission=false CFG.AutoExec=false CFG.DeliverFirst=false
   CFG.Esp=false CFG.Fog=false CFG.Full=false CFG.AntiLag=false
   CFG.Speed=16 CFG.Jump=50 CFG.InfJump=false CFG.Noclip=false
   CFG.SmeltAt=10 CFG.Delay=1.2 CFG.TpSpot=true
@@ -841,15 +1261,21 @@ sect(inf,"Como usar")
 note(inf,"1. Abra Automação e ligue o que quiser.\n2. O status aparece no rodapé do painel.\n3. Dúvida de alguma função? Está tudo aqui embaixo.",62)
 sect(inf,"Cada função")
 note(inf,[[
-AUTO CAVAR: acha o ponto de escavação mais perto, teleporta e aciona o prompt.
-AUTO FUNDIR: com X minérios (padrão 10), vai à fundidora e transforma em barras.
+LOOP DE MISSÃO: ao entrar no jogo, entrega o ouro pendente, TP na missão escolhida
+(Trem de Noobs OU Chão e Lava) e aperta o botão Teletransportar.
+Auto-executa, escava todos os pontos WGC Gold Hunters, TP no portal
+Caçadores de Ouro 2.0, volta ao início, TP na área de fundir, clica Fundir,
+espera 2s e espera 10s (ou clica o botão da missão — opção para testar).
+Repete infinito até desligar. TP é instantâneo.
+AUTO CAVAR: equipa a escavadeira, vai ao ponto e aciona o prompt (hold).
+AUTO FUNDIR: com X minérios, vai à fundidora e transforma em barras.
 AUTO MELHORAR: procura prompts de melhoria e aciona sozinho.
-AUTO NPC QUIZ: responde o quiz do NPC (o +1 barras a cada 2h).
+AUTO NPC QUIZ: responde o quiz do NPC (+1 barra a cada 2h).
 AUTO MUSEU: resolve os 6 quizzes do museu (tiers de UGC).
-AUTO PEPITAS: pega os 15 coletáveis do hub a cada reset.
-MODO PARCEIRO: cava, volta ao hub ao encher o saco, funde, melhora e retorna.
-HUD: Barras de Ouro / Mina de Ouro / Planos à esquerda e dock à direita.
-]],236)
+AUTO PEPITAS: vai à mina, escava, coleta a cota (que cresce com o progresso),
+volta ao início e entrega as pepitas na máquina.
+AUTO-EXECUTE: reexecuta o script ao teleportar/sair do servidor.
+]],296)
 sect(inf,"TP HUB")
 note(inf,[[
 Salvar destino: guarda onde você está agora.
@@ -940,8 +1366,9 @@ task.spawn(function()
     pcall(function()
       local ore=num(ORE) or ST.ores
       local bar=num(BAR) or ST.bars
-      tele.Text=string.format("Barras: %s\nMinério: %s / %d\nSessão: +%d minérios   Pontos: %d",
-        tostring(bar or "-"),tostring(ore or "-"),CFG.SmeltAt,ST.session,ST.spots)
+      tele.Text=string.format("Barras: %s\nMinério: %s / %d\nPepitas: %d / %d (%s)\nMissão: %s  |  fase: %s\nSessão: +%d minérios   Pontos: %d",
+        tostring(bar or "-"),tostring(ore or "-"),CFG.SmeltAt,ST.got,ST.need,ST.phase,
+        MISS[CFG.Mission] and MISS[CFG.Mission].n or "?",ST.mphase,ST.session,ST.spots)
       stat.Text="Status: "..ST.status
       lsl.Text=lsLine()
     end)
@@ -955,9 +1382,9 @@ task.spawn(function()
       if pages.Home.Visible then
         local h=hum()
         homeName.Text="   "..LP.Name..(h and ("    |    HP "..math.floor(h.Health)) or "")
-        homeLive.Text=string.format("Auto cavar: %s   Auto fundir: %s\nModo parceiro: %s   TP: %s\nStatus: %s",
-          CFG.AutoDig and "ON" or "OFF",CFG.AutoSmelt and "ON" or "OFF",
-          CFG.Partner and "ON" or "OFF",CFG.TpOn and "ON" or "OFF",ST.status)
+        homeLive.Text=string.format("Missão: %s   Loop: %s\nPepitas: %d/%d   AutoExec: %s\nStatus: %s",
+          MISS[CFG.Mission] and MISS[CFG.Mission].n or "?",CFG.AutoMission and "ON" or "OFF",
+          ST.got,ST.need,CFG.AutoExec and "ON" or "OFF",ST.status)
       end
       local ls=LP:FindFirstChild("leaderstats")
       if ls then
@@ -982,6 +1409,9 @@ bClose.MouseButton1Click:Connect(function()
   end)
   CFG.AutoDig=false CFG.AutoSmelt=false CFG.AutoUpgrade=false
   CFG.AutoNpc=false CFG.AutoMuseum=false CFG.AutoNugget=false CFG.Partner=false
+  CFG.AutoMission=false CFG.AutoExec=false CFG.DeliverFirst=false
+  if qtp then pcall(qtp,"") end
+  Store.RG_AUTO=nil Store.RG_MISSION=nil
   gui:Destroy()
   toast("Reaper Gold","Fechado e automações desligadas.",3)
 end)
@@ -991,4 +1421,5 @@ refreshTarget()
 renderLogs()
 show("Home")
 task.spawn(function() for _=1,40 do pcall(function() applyChar() end) task.wait(.4) end end)
-toast("Reaper Gold v1","HUD pronta. Abra Automação ou TP Hub.",5)
+if CFG.AutoExec then autoExec(true) end
+toast("Reaper Gold v1","Missão "..MISS[CFG.Mission].n.." | auto-execute ligado.",5)
