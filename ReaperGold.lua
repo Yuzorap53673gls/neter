@@ -35,6 +35,12 @@ Speed=16,Jump=50,InfJump=false,Noclip=false,
 NoobSize=100,Trails=false,Avatar=false,TpOn=true,
 }
 
+if type(Store.RG_CFG)~="table" then Store.RG_CFG={} end
+for k,v in pairs(Store.RG_CFG) do CFG[k]=v end
+local function saveCfg()
+  for k,v in pairs(CFG) do Store.RG_CFG[k]=v end
+end
+
 local ST={esp={},logs={},idx=1,target=LP,dest=nil,status="Pronto",
 ores=0,bars=0,bp=0,spots=0,session=0,cd={},acc=nil,bc=nil,trail=nil,lastSpot=nil,noobs=0,
 home=nil,nug=nil,got=0,need=15,phase="parado",mphase="check",midx=1,mwait=0}
@@ -216,7 +222,7 @@ local function tog(par,t,k,cb)
     pill.BackgroundColor3=on and GR or C(70,64,74)
     tx.Text=on and "ON" or "OFF"
   end
-  r.MouseButton1Click:Connect(function() CFG[k]=not CFG[k] paint() if cb then pcall(cb,CFG[k]) end end)
+  r.MouseButton1Click:Connect(function() CFG[k]=not CFG[k] paint() saveCfg() if cb then pcall(cb,CFG[k]) end end)
   paint()
   return r
 end
@@ -236,7 +242,7 @@ local function card(par,t,d,k,cb)
     pill.BackgroundColor3=on and GR or C(70,64,74)
     tx.Text=on and "ON" or "OFF"
   end
-  r.MouseButton1Click:Connect(function() CFG[k]=not CFG[k] paint() if cb then pcall(cb,CFG[k]) end end)
+  r.MouseButton1Click:Connect(function() CFG[k]=not CFG[k] paint() saveCfg() if cb then pcall(cb,CFG[k]) end end)
   paint()
   return r
 end
@@ -248,7 +254,7 @@ local function step(par,t,k,st,mn,mx,cb)
   local function sb(txt,x,dir)
     local b=mk("TextButton",r,{Size=U2(0,24,0,24),Position=U2(1,x,.5,-12),BackgroundColor3=C(54,43,50),Text=txt,Font=F.GothamBold,TextSize=13,TextColor3=TX})
     mk("UICorner",b,{CornerRadius=UD(0,6)})
-    b.MouseButton1Click:Connect(function() CFG[k]=math.clamp(CFG[k]+dir*st,mn,mx) val.Text=tostring(CFG[k]) if cb then pcall(cb,CFG[k]) end end)
+    b.MouseButton1Click:Connect(function() CFG[k]=math.clamp(CFG[k]+dir*st,mn,mx) val.Text=tostring(CFG[k]) saveCfg() if cb then pcall(cb,CFG[k]) end end)
   end
   sb("-",-58,-1) sb("+",-28,1)
 end
@@ -943,27 +949,29 @@ local function namedParts(words)
   return out
 end
 
--- pontos de minério: procura no mapa INTEIRO, nao só prompt "dig"
-local OREW={"ore","miner","minério","minerio","gold","ouro","nugget","pepita","pedra","rock","bloco","deposit","veio","wall","parede","escav","dig","cav"}
+-- pontos de minério: so pepita/minerio puro, NUNCA portal/fundidora
+local OREW={"ore","miner","minério","minerio","nugget","pepita","pedra","rock","bloco","deposit","veio","parede","wall","escav","dig","cav"}
+local BADW={"teletransport","teleport","portal","fundir","fundi","smelt","upgrade","melhor","museum","musu","npc","quiz","loja","shop","lobby","caçad","cacad","hunter"}
+local function isGood(s)
+  s=string.lower(s or "")
+  if has(s,BADW) then return false end
+  return has(s,OREW)
+end
 local function mineSpots()
   local out,seen={},{}
   local function add(o)
     if o and o.Parent and not seen[o] then seen[o]=true out[#out+1]=o end
   end
   for _,root in ipairs(workspace:GetChildren()) do
-    if root~=workspace.CurrentCamera and root~=chr() then
+    if root~=workspace.CurrentCamera and root~=chr() and not has(root.Name,{"caçad","cacad","hunter","teletransport","portal"}) then
       for _,d in ipairs(root:GetDescendants()) do
-        if d:IsA("BasePart") and has(d.Name,OREW) then add(d)
-        elseif d:IsA("ProximityPrompt") and d.Enabled and has((d.ActionText or "").." "..(d.ObjectText or "").." "..(d.Parent and d.Parent.Name or ""),OREW) then
+        if d:IsA("BasePart") and isGood(d.Name) then add(d)
+        elseif d:IsA("ProximityPrompt") and d.Enabled and isGood((d.ActionText or "").." "..(d.ObjectText or "").." "..(d.Parent and d.Parent.Name or "")) then
           local b=d.Parent and d.Parent:FindFirstChildWhichIsA("BasePart",true)
           add(b or d.Parent)
         end
       end
     end
-  end
-  for _,p in ipairs(prompts()) do
-    local b=p.Parent and p.Parent:FindFirstChildWhichIsA("BasePart",true)
-    add(b or p.Parent)
   end
   return out
 end
@@ -1282,9 +1290,9 @@ local function paintMission()
   if m2 then m2:FindFirstChildWhichIsA("TextLabel").Text=(CFG.Mission==2 and "> " or "   ").."Missão: Chão e Lava" end
   if wb then wb:FindFirstChildWhichIsA("TextLabel").Text="Entrega: "..(CFG.WaitMode==1 and "esperar 10 segundos" or "clicar no botão da missão") end
 end
-m1=btn(au,"Missão: Trem de Noobs",function() CFG.Mission=1 paintMission() end)
-m2=btn(au,"Missão: Chão e Lava",function() CFG.Mission=2 paintMission() end)
-wb=btn(au,"Entrega: esperar 10 segundos",function() CFG.WaitMode=CFG.WaitMode==1 and 2 or 1 paintMission() end)
+m1=btn(au,"Missão: Trem de Noobs",function() CFG.Mission=1 saveCfg() paintMission() end)
+m2=btn(au,"Missão: Chão e Lava",function() CFG.Mission=2 saveCfg() paintMission() end)
+wb=btn(au,"Entrega: esperar 10 segundos",function() CFG.WaitMode=CFG.WaitMode==1 and 2 or 1 saveCfg() paintMission() end)
 paintMission()
 card(au,"Auto Missão (loop)","Entra na missão, escava no WGC, vai ao portal, funde e repete","AutoMission")
 card(au,"Auto-Execute","Reexecuta sozinho ao teleportar/sair do servidor","AutoExec",function(v) autoExec(v) end)
@@ -1335,6 +1343,7 @@ btn(aj,"Resetar toda a configuração",function()
   CFG.Speed=16 CFG.Jump=50 CFG.InfJump=false CFG.Noclip=false
   CFG.SmeltAt=10 CFG.Delay=1.2 CFG.TpSpot=true
   setFog(false) setFull(false) setLag(false) clearAll() trail(false)
+  saveCfg()
   toast("Reaper Gold","Configuração resetada.",3)
 end)
 
