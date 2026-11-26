@@ -1098,67 +1098,49 @@ local function missionTick()
     mPhase("dig")
 
   elseif ph=="dig" then
-    local spots=mineSpots()
-    ST.spots=#spots
-    if #spots==0 then
-      ST.status="Sem pontos de minério — indo ao portal"
+    -- dentro do mapa: prompts "Scan for Gold Ore | WGC Gold Hunters" (ignora os de Teleport)
+    local oreP={}
+    for _,p in ipairs(prompts()) do
+      if p.Enabled and has((p.ActionText or "").." "..(p.ObjectText or ""),{"scan for gold","gold ore","wgc gold hunters","gold hunters"}) and not has((p.ActionText or ""),{"teleport"}) then
+        oreP[#oreP+1]=p
+      end
+    end
+    if #oreP==0 then oreP=mineSpots() end
+    ST.spots=#oreP
+    if #oreP==0 then
+      ST.status="Sem pontos WGC — indo ao portal"
       mPhase("portal")
       return
     end
-    if ST.midx>#spots then ST.midx=1 end
-    local o=spots[ST.midx]
-    if o:IsA("BasePart") then
-      tpPart(o)
-    else
-      tpNear(o,3)
-    end
-    task.wait(.08)
-    equipDig()
+    if ST.midx>#oreP then ST.midx=1 end
+    local o=oreP[ST.midx]
     local did=false
-    if o:IsA("ProximityPrompt") then did=fireP(o)
-    else
+    if o:IsA("ProximityPrompt") then
+      if CFG.TpSpot then tpNear(o,3) end
+      task.wait(.08)
+      equipDig()
+      did=fireP(o)
+    elseif o:IsA("BasePart") then
+      tpPart(o)
+      task.wait(.08)
+      equipDig()
       for _,d in ipairs(o:GetDescendants()) do
         if d:IsA("ProximityPrompt") and d.Enabled and fireP(d) then did=true break end
         if d:IsA("ClickDetector") and pcall(function() fireclickdetector(d) end) then did=true break end
       end
     end
-    if not did then
-      for _,p in ipairs(prompts()) do
-        if (p.Parent==o or (o.Parent and p.Parent==o.Parent)) and fireP(p) then did=true break end
-      end
-    end
-    if not did then tpPart(o) end
     ST.midx=ST.midx+1
-    ST.status="Mina "..(ST.midx-1).."/"..#spots..(did and " (cavando)" or " (pulando)")
+    ST.status="WGC Gold Hunters "..(ST.midx-1).."/"..#oreP..(did and " (cavando)" or "")
     task.wait(.28)
 
   elseif ph=="portal" then
-    ST.status="Portal Caçadores de Ouro 2.0 (perto do spawn)"
-    local c=namedParts({"caçad","cacad","hunter","gold hunter","goldhunter","2.0","teleport","teletransport"})
-    if #c==0 then
-      for _,d in ipairs(workspace:GetDescendants()) do
-        if d:IsA("BasePart") and has(d.Name,{"caçad","cacad","hunter","gold hunter","2.0"}) then c[#c+1]=d end
+    ST.status="Teleport Caçadores de Ouro 2.0"
+    for _,p in ipairs(prompts()) do
+      if p.Enabled and has((p.ActionText or "").." "..(p.ObjectText or ""),{"caçad","cacad","hunter","gold hunters","2.0"}) then
+        if CFG.TpSpot then tpNear(p,3) end
+        task.wait(.08)
+        if fireP(p) then ST.status="Voltando ao hub" break end
       end
-    end
-    if #c==0 then
-      local p=findP({"caçad","cacad","hunter","gold hunter","2.0","teletransport"},6)
-      for i=1,math.min(#p,3) do
-        local b=p[i].Parent and p[i].Parent:FindFirstChildWhichIsA("BasePart",true)
-        if b then c[#c+1]=b end
-      end
-    end
-    if #c>0 then
-      local best=c[1]
-      local sp=workspace:FindFirstChildOfClass("SpawnLocation")
-      if sp then
-        local d0=(c[1].Position-sp.Position).Magnitude
-        for _,o in ipairs(c) do
-          local d=(o.Position-sp.Position).Magnitude
-          if d<d0 then d0=d best=o end
-        end
-      end
-      tpPart(best)
-      task.wait(.1)
     end
     Store.RG_MISSION={phase="smelt",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
     clickText(BTP)
