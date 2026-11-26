@@ -1001,15 +1001,33 @@ local function missionTick()
     ST.status="WGC Gold Hunters: "..(ST.midx-1).."/"..#sp
 
   elseif ph=="portal" then
-    local m=MISS[CFG.Mission] or MISS[1]
-    ST.status="Portal da missão: "..m.n
-    local c=namedParts(m.port)
+    ST.status="Portal Caçadores de Ouro 2.0 (perto do spawn)"
+    local c=namedParts({"caçad","cacad","hunter","gold hunter","goldhunter","2.0","teleport","teletransport"})
     if #c==0 then
       for _,d in ipairs(workspace:GetDescendants()) do
-        if d:IsA("BasePart") and has(d.Name,m.port) then c[#c+1]=d end
+        if d:IsA("BasePart") and has(d.Name,{"caçad","cacad","hunter","gold hunter","2.0"}) then c[#c+1]=d end
       end
     end
-    if #c>0 then tpPart(c[1]) task.wait(.1) end
+    if #c==0 then
+      local p=findP({"caçad","cacad","hunter","gold hunter","2.0","teletransport"},6)
+      for i=1,math.min(#p,3) do
+        local b=p[i].Parent and p[i].Parent:FindFirstChildWhichIsA("BasePart",true)
+        if b then c[#c+1]=b end
+      end
+    end
+    if #c>0 then
+      local best=c[1]
+      local sp=workspace:FindFirstChildOfClass("SpawnLocation")
+      if sp then
+        local d0=(c[1].Position-sp.Position).Magnitude
+        for _,o in ipairs(c) do
+          local d=(o.Position-sp.Position).Magnitude
+          if d<d0 then d0=d best=o end
+        end
+      end
+      tpPart(best)
+      task.wait(.1)
+    end
     Store.RG_MISSION={phase="smelt",mission=CFG.Mission,waitmode=CFG.WaitMode,idx=1}
     clickText(BTP)
     autoExec(true)
